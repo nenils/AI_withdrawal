@@ -6,50 +6,56 @@ The production study is served at:
 https://iivm11.cit.tum.de/HAIC_part_1/
 ```
 
-nginx runs inside the `study` container, terminates TLS, redirects HTTP to HTTPS, serves reVISit, and proxies `/api/` and `/supabase/` to their private Docker services.
+nginx runs inside the `study` container, terminates TLS, redirects HTTP to
+HTTPS, serves reVISit, and proxies `/api/` and `/supabase/` to their private
+Docker services.
 
 ## 1. DNS and firewall
 
-Confirm that `iivm11.cit.tum.de` resolves to the VM's public address and that inbound TCP ports `80` and `443` are permitted. No Supabase, PostgreSQL, MinIO, or Python API port should be publicly exposed.
+Confirm that `iivm11.cit.tum.de` resolves to the VM and that inbound TCP ports
+`80` and `443` are permitted. No Supabase, PostgreSQL, MinIO, or Python API port
+should be publicly exposed.
 
 ```bash
 getent hosts iivm11.cit.tum.de
-sudo ss -ltnp | grep -E ':(80|443)\b'
+sudo ss -ltnp | grep -E ':(80|443)\b' || true
 ```
 
-Port 80 is retained only for the HTTPS redirect and certificate-related reachability. Participant traffic uses port 443.
+Port 80 is required for the Let's Encrypt HTTP challenge and remains available
+afterward only to redirect participant traffic to HTTPS.
 
-## 2. Obtain the CIT certificate with rbg-cert
+## 2. Obtain the certificate
 
-For CIT Ubuntu VMs, follow the ITO server-certificate procedure and use the centrally maintained `rbg-cert` installation. Do not use `mkcert`; its local CA is suitable only for local development. Manual CSR issuance is an exception when neither `rbg-cert` nor Let's Encrypt is possible.
-
-First confirm that the VM and all required aliases are correctly registered in the StrukturDB. Then run:
+This VM does not have the centrally managed CIT `rbg-cert` client or `/etc/uqn`
+configuration. The CIT guidance permits Let's Encrypt for machines that are not
+provisioned with that client. Install Certbot and request the certificate while
+ports 80 and 443 are still unused:
 
 ```bash
-sudo rbg-cert --show
-sudo rbg-cert --force-request
-sudo rbg-cert
-sudo ls -la /var/lib/rbg-cert/live
+sudo apt update
+sudo apt install -y certbot
+sudo certbot certonly --standalone -d iivm11.cit.tum.de
+sudo certbot certificates
 ```
 
-The Docker configuration expects these automatically renewed files:
+Certbot asks for an email address and acceptance of the subscriber agreement.
+The resulting files must exist at:
 
 ```text
-/var/lib/rbg-cert/live/iivm11.cit.tum.de.fullchain.pem
-/var/lib/rbg-cert/live/iivm11.cit.tum.de.privkey.pem
+/etc/letsencrypt/live/iivm11.cit.tum.de/fullchain.pem
+/etc/letsencrypt/live/iivm11.cit.tum.de/privkey.pem
 ```
 
-If `rbg-cert --show` reports a different canonical filename, update the two `ssl_certificate` paths in `docker/nginx/https.conf` to match it. Do not copy the private key into Git or relax its permissions.
-
-The ITO timer renews certificates automatically before expiry. The directory is mounted read-only into nginx using `TLS_CERT_DIR=/var/lib/rbg-cert/live`.
+The Docker configuration mounts the complete `/etc/letsencrypt` directory
+read-only because the files under `live/` are symlinks into `archive/`.
 
 ## 3. Reload nginx after renewal
 
-Create a renewal hook so the running container starts using a renewed certificate:
+Create a Certbot deploy hook:
 
 ```bash
-sudo install -d -m 755 /usr/local/cert.d
-sudo nano /usr/local/cert.d/ai-withdrawal
+sudo install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
+sudo nano /etc/letsencrypt/renewal-hooks/deploy/reload-ai-withdrawal
 ```
 
 Put this in the file:
@@ -59,13 +65,15 @@ Put this in the file:
 docker kill --signal=HUP ai-withdrawal-study >/dev/null 2>&1 || true
 ```
 
-Then enable it:
+Then enable and test the renewal configuration:
 
 ```bash
-sudo chmod 755 /usr/local/cert.d/ai-withdrawal
+sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-ai-withdrawal
+sudo systemctl enable --now certbot.timer
+sudo certbot renew --dry-run
 ```
 
-This uses the supported `/usr/local/cert.d/` renewal-hook mechanism without modifying `rbg-cert` itself.
+The deploy hook only runs after a successful renewal.
 
 ## 4. Configure the deployment
 
@@ -76,7 +84,7 @@ STUDY_HTTP_PORT=80
 STUDY_HTTPS_PORT=443
 STUDY_PUBLIC_URL=https://iivm11.cit.tum.de
 VITE_SUPABASE_URL=https://iivm11.cit.tum.de/supabase
-TLS_CERT_DIR=/var/lib/rbg-cert/live
+TLS_CERT_ROOT=/etc/letsencrypt
 ```
 
 The certificate directory and all secrets stay on the VM.
@@ -124,6 +132,6 @@ Expected results:
 - HTTP returns a `301` redirect to HTTPS.
 - HTTPS Part 1 returns `200`.
 - `/api/health` returns JSON with status `ok` and Supabase storage.
-- The certificate subject or SAN includes `iivm11.cit.tum.de`, and certificate verification succeeds.
+- The certificate SAN includes `iivm11.cit.tum.de`, and verification succeeds.
 
 The four SONA URLs are listed in `AI_WITHDRAWAL_STUDY.md`.

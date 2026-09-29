@@ -63,7 +63,7 @@ SUPABASE_URL=http://kong:8000
 SUPABASE_SERVICE_ROLE_KEY=<same service-role key as supabase/.env>
 
 STUDY_PUBLIC_URL=https://iivm11.cit.tum.de
-TLS_CERT_DIR=/var/lib/rbg-cert/live
+TLS_CERT_ROOT=/etc/letsencrypt
 OPENROUTER_API_KEY=<server-side key>
 
 SONA_PART_1_COMPLETION_URL=<part-1 server-side completion URL>
@@ -77,14 +77,15 @@ Keep all real credentials in `.env.docker` or `supabase/.env`; never add them to
 
 ## 4. Certificates
 
-Install the CIT/ITO certificate and key as documented in `HTTPS_CIT_CERTIFICATE.md`:
+Install the Let's Encrypt certificate as documented in `HTTPS_CIT_CERTIFICATE.md`:
 
 ```text
-/var/lib/rbg-cert/live/iivm11.cit.tum.de.fullchain.pem
-/var/lib/rbg-cert/live/iivm11.cit.tum.de.privkey.pem
+/etc/letsencrypt/live/iivm11.cit.tum.de/fullchain.pem
+/etc/letsencrypt/live/iivm11.cit.tum.de/privkey.pem
 ```
 
-Certificate files are ignored by Git and mounted read-only into nginx.
+The complete `/etc/letsencrypt` tree is mounted read-only into nginx because the
+files under `live/` are symlinks into `archive/`.
 
 ## 5. Build and start
 
