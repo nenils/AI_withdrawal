@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json",
+  "studyMetadata": {
+    "title": "AI Support Withdrawal in Mastermind - Part 4",
+    "version": "v-4-sona-part-4",
+    "authors": [
+      "Nils Ness"
+    ],
+    "date": "2026-09-29",
+    "description": "Part 4 of the four-part SONA experiment on the introduction and withdrawal of AI support.",
+    "organizations": [
+      "Technical University of Munich"
+    ]
+  },
+  "uiConfig": {
+    "contactEmail": "nils.ness@tum.de",
+    "helpTextPath": "HAIC_study/assets/help.md",
+    "logoPath": "HAIC_study/assets/logo.svg",
+    "withProgressBar": true,
+    "autoDownloadStudy": false,
+    "withSidebar": true,
+    "enumerateQuestions": true,
+    "urlParticipantIdParam": "sona_id",
+    "studyEndMsg": "Thank you. Part 4 and the full study are complete, and your SONA credit has been granted.",
+    "numSequences": 1
+  },
+  "importedLibraries": [
+    "haic-withdrawal"
+  ],
+  "components": {
+    "mastermind-part": {
+      "baseComponent": "$haic-withdrawal.components.mastermind",
+      "parameters": {
+        "partNumber": 4
+      }
+    },
+    "sona-completion-part": {
+      "baseComponent": "$haic-withdrawal.components.sona-completion",
+      "parameters": {
+        "partNumber": 4
+      }
+    }
+  },
+  "sequence": {
+    "order": "fixed",
+    "components": [
+      "mastermind-part",
+      "$haic-withdrawal.components.session-state",
+      "$haic-withdrawal.components.cognitive_responsibility",
+      "$haic-withdrawal.components.cognitive-load-intrinsic",
+      "$haic-withdrawal.components.cognitive-load-extraneous",
+      "$haic-withdrawal.components.cognitive-load-germane",
+      "$haic-withdrawal.components.common-method-bias",
+      "$haic-withdrawal.components.Ownership",
+      "$haic-withdrawal.components.control-trust-willingness",
+      "sona-completion-part"
+    ]
+  }
+}

@@ -3,7 +3,7 @@ import {
 } from 'react';
 import { useDispatch } from 'react-redux';
 import { useCurrentComponent, useCurrentIdentifier } from '../routes/utils';
-import { useStoreDispatch, useStoreActions } from '../store/store';
+import { useStoreDispatch, useStoreActions, useStoreSelector } from '../store/store';
 import { ParticipantData, WebsiteComponent } from '../parser/types';
 import { PREFIX as BASE_PREFIX } from '../utils/Prefix';
 
@@ -16,6 +16,7 @@ export function IframeController({ currentConfig, provState, answers }: { curren
   const storeDispatch = useStoreDispatch();
   const dispatch = useDispatch();
   const identifier = useCurrentIdentifier();
+  const participantId = useStoreSelector((state) => state.participantId);
 
   const ref = useRef<HTMLIFrameElement>(null);
 
@@ -60,9 +61,14 @@ export function IframeController({ currentConfig, provState, answers }: { curren
       if (typeof data === 'object' && iframeId === data.iframeId) {
         switch (data.type) {
           case `${PREFIX}/WINDOW_READY`:
-            if (currentConfig.parameters) {
-              sendMessage('STUDY_DATA', currentConfig.parameters);
-            }
+            sendMessage('STUDY_DATA', {
+              ...(currentConfig.parameters || {}),
+              __revisit: {
+                participantId,
+                component: currentComponent,
+                identifier,
+              },
+            });
             break;
           case `${PREFIX}/READY`:
             break;
@@ -93,7 +99,7 @@ export function IframeController({ currentConfig, provState, answers }: { curren
     window.addEventListener('message', handler);
 
     return () => window.removeEventListener('message', handler);
-  }, [storeDispatch, dispatch, iframeId, currentConfig, sendMessage, setReactiveAnswers, updateResponseBlockValidation, identifier]);
+  }, [storeDispatch, dispatch, iframeId, currentConfig, sendMessage, setReactiveAnswers, updateResponseBlockValidation, identifier, participantId, currentComponent]);
 
   return (
     <iframe

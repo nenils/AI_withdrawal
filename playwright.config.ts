@@ -2,8 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   webServer: {
-    command: 'yarn serve',
-    url: 'http://localhost:8080',
+    command: `${process.execPath} node_modules/vite/bin/vite.js --host=127.0.0.1 --port=8080`,
+    url: 'http://127.0.0.1:8080',
+    env: { ...process.env, VITE_STORAGE_ENGINE: 'localStorage' },
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
     stderr: 'pipe',
@@ -19,7 +20,7 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: 'http://localhost:8080',
+    baseURL: 'http://127.0.0.1:8080',
     trace: 'on-first-retry',
   },
 

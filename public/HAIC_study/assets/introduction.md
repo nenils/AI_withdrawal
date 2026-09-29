@@ -43,23 +43,15 @@
   }
 </style>
 
-# Mastermind Study  
+# Mastermind Study
 
+Welcome. **Mastermind** is a code-breaking game in which you try to identify a hidden sequence of four colors. After each guess, you receive feedback that can help you refine the next guess. Colors may repeat.
 
-Welcome! In this study.  
+This is a **four-part online study** administered through SONA. Each part contains four complete Mastermind games with up to ten attempts per game, followed by questions about your experience. SONA makes the next part available after the configured 24-hour separation from the credited completion of the preceding part. The form of support available during the task may differ between participants and across the study.
 
-**Mastermind** is a code-breaking game where the goal is to guess a hidden sequence of colors. Each time you make a guess, you’ll get feedback to help you get closer to cracking the code. 
+Participation is voluntary. You may stop at any time without giving a reason. There are no right or wrong questionnaire answers; please respond honestly based on your experience in the current session.
 
-If you manage to guess the correct code with **five or fewer attempts in the last round**, you will receive a **bonus payment.**
-
-The Study is structured into **three sections:** 
-1. Introductory video tutorial to the Game Mastermind
-2. Five rounds of the Game Mastermind to play. The game starts with two available colors, and one additional color is added in each following round.
-3. A few short questions about your experiences during the Game
-
-The whole study takes about **15 minutes**. There are no right or wrong answers—we’re simply interested in your honest impressions.  
-
-By clicking "Next", you acknowledge that you have read the information about how your data will be collected during the study.  
+By selecting **Next**, you confirm that you have read the information below and consent to participate.
 
 ---
 
@@ -69,9 +61,9 @@ By clicking "Next", you acknowledge that you have read the information about how
   </summary>
 
   <div style="margin-top: 1rem; padding: 1rem; border: 1px solid #dbe3ef; border-radius: 8px; background: #f8fafc;">
-    <p>I agree that my personal data will be processed by the Technical University of Munich, here by Nils Ness, as part of the study. Only the organizers of the survey will have access to the personal data.</p>
-    <p> I can revoke my consent at any time for the future without affecting the legality of the processing carried out on the basis of the consent until the revocation on the basis of Art. 6 para. 1 lit. a GDPR. Consequence of revocation, e.g., no participation in the survey. Please send your revocation to <a href="mailto:nils.ness@tum.de">nils.ness@tum.de</a>.</p>
-    <p>The survey is carried out with SoSciSurvey as part of the tum.de tenant's commissioned data processing. You can check this via the "Data protection and cookies" link at the bottom of this page. The results of the survey are stored in Germany and are not enriched with metadata from Microsoft.</p>
-    <p>Under the legal requirements, there is a right to information, as well as to rectification or erasure or to restriction of processing or a right to object to processing as well as the right to data portability. There is also a right of appeal to the Bavarian State Commissioner for Data Protection. If you have any questions, please contact Nils Ness or our data protection officer.</p>
+    <p>The study records your SONA survey code, questionnaire responses, game guesses and feedback, timestamps, interactions with any available AI support, and technical interaction events such as clicks and page visibility. Your email address is not collected by this experiment application.</p>
+    <p>The SONA survey code is used to connect your responses across the four parts and to grant participation credit. Access to the research data is restricted to the study team.</p>
+    <p>You may withdraw your consent for future processing by contacting <a href="mailto:nils.ness@tum.de">nils.ness@tum.de</a>. Withdrawal does not affect processing that was lawful before the withdrawal.</p>
+    <p>Under the applicable legal requirements, you may have rights to access, rectification, erasure, restriction of processing, objection, and data portability, as well as a right to lodge a complaint with the competent data-protection authority. Contact the researcher or the university data-protection officer with questions.</p>
   </div>
 </details>

@@ -1,59 +1,6 @@
 {
-  "$schema": "https://raw.githubusercontent.com/revisit-studies/study/main/src/parser/StudyConfigSchema.json",
-  "studyMetadata": {
-    "title": "AI Support Withdrawal in Mastermind",
-    "version": "v-3-longitudinal",
-    "authors": [
-      "Nils Ness"
-    ],
-    "date": "2026-09-29",
-    "description": "Four-session longitudinal experiment on the introduction and withdrawal of AI support.",
-    "organizations": [
-      "Technical University of Munich"
-    ]
-  },
-  "uiConfig": {
-    "contactEmail": "nils.ness@tum.de",
-    "helpTextPath": "HAIC_study/assets/help.md",
-    "logoPath": "HAIC_study/assets/logo.svg",
-    "withProgressBar": true,
-    "autoDownloadStudy": false,
-    "withSidebar": true,
-    "enumerateQuestions": true,
-    "urlParticipantIdParam": "PROLIFIC_PID",
-    "studyEndMsg": "Thank you for completing the study. Your responses have been saved. Please return to Prolific. Copy this Code: ** C1WQRRAE **",
-    "numSequences": 150
-  },
-  "baseComponents": {
-    "mind_judge": {
-      "type": "website",
-      "response": [
-        {
-          "id": "mastermind_judge_reactive",
-          "prompt": "Start the task!",
-          "required": true,
-          "location": "belowStimulus",
-          "type": "reactive"
-        }
-      ],
-      "path": "HAIC_study/assets/HAIC_role_Judge_increasing complexity.html",
-      "instructionLocation": "aboveStimulus"
-    },
-    "mind_advisor": {
-      "type": "website",
-      "response": [
-        {
-          "id": "mastermind_advisor_reactive",
-          "prompt": "Start the task!",
-          "required": true,
-          "location": "belowStimulus",
-          "type": "reactive"
-        }
-      ],
-      "path": "HAIC_study/assets/HAIC_role_Advisor_increasing_complexity.html",
-      "instructionLocation": "aboveStimulus"
-    }
-  },
+  "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/LibraryConfigSchema.json",
+  "description": "Shared components for the four-part SONA AI-support withdrawal study.",
   "components": {
     "introduction": {
       "type": "markdown",
@@ -61,76 +8,6 @@
       "response": [],
       "nextButtonEnableTime": 15000,
       "nextButtonText": "Next"
-    },
-  
-    "mastermind_control": {
-      "type": "website",
-      "path": "HAIC_study/assets/mastermind_withdrawal.html",
-      "instructionLocation": "aboveStimulus",
-      "description": "Control condition without AI support across all four sessions.",
-      "parameters": {
-        "condition": "control"
-      },
-      "response": [
-        {
-          "id": "played-game",
-          "prompt": "After completing all four sessions, enter the completion password shown in the game.",
-          "required": true,
-          "type": "shortText",
-          "location": "sidebar"
-        }
-      ],
-      "style": {
-        "minHeight": "760px"
-      },
-      "withSidebar": true,
-      "sidebarWidth": 320
-    },
-    "mastermind_judge": {
-      "type": "website",
-      "path": "HAIC_study/assets/mastermind_withdrawal.html",
-      "instructionLocation": "aboveStimulus",
-      "description": "High cognitive responsibility (AI as a Judge): you create and submit guesses; the AI has low autonomy and only reviews a guess when you explicitly send it.",
-      "parameters": {
-        "condition": "judge"
-      },
-      "response": [
-        {
-          "id": "played-game",
-          "prompt": "After completing all four sessions, enter the completion password shown in the game.",
-          "required": true,
-          "type": "shortText",
-          "location": "sidebar"
-        }
-      ],
-      "style": {
-        "minHeight": "760px"
-      },
-      "withSidebar": true,
-      "sidebarWidth": 320
-    },
-    "mastermind_advisor": {
-      "type": "website",
-      "path": "HAIC_study/assets/mastermind_withdrawal.html",
-      "instructionLocation": "aboveStimulus",
-      "description": "Low cognitive responsibility (AI as an Advisor): the AI has high autonomy and proactively proposes the next guess using a trained Mastermind RL model; you can apply or adjust it before submitting.",
-      "parameters": {
-        "condition": "advisor"
-      },
-      "response": [
-        {
-          "id": "played-game",
-          "prompt": "After completing all four sessions, enter the completion password shown in the game.",
-          "required": true,
-          "type": "shortText",
-          "location": "sidebar"
-        }
-      ],
-      "style": {
-        "minHeight": "760px"
-      },
-      "withSidebar": true,
-      "sidebarWidth": 320
     },
     "demographics": {
       "type": "questionnaire",
@@ -776,8 +653,6 @@
           "rightLabel": "Strongly Agree",
           "numItems": 7
         }
-
-       
       ],
       "style": {
         "width": "75%",
@@ -837,33 +712,106 @@
         "width": "min(720px, 92vw)",
         "margin": "0 auto"
       }
+    },
+    "mastermind": {
+      "type": "website",
+      "path": "HAIC_study/assets/mastermind_withdrawal.html",
+      "instructionLocation": "aboveStimulus",
+      "description": "Four complete Mastermind games for the current longitudinal study part.",
+      "response": [
+        {
+          "id": "played-game",
+          "prompt": "Complete all four games to continue.",
+          "required": true,
+          "type": "shortText",
+          "location": "sidebar"
+        }
+      ],
+      "style": {
+        "minHeight": "760px"
+      },
+      "withSidebar": true,
+      "sidebarWidth": 320
+    },
+    "session-state": {
+      "type": "questionnaire",
+      "description": "Brief repeated measures for the session just completed.",
+      "responseDividers": true,
+      "responseOrder": "random",
+      "instructionLocation": "aboveStimulus",
+      "instruction": "## Your experience in this session\nPlease answer with the four games you just completed in mind.",
+      "response": [
+        {
+          "id": "state-responsibility",
+          "prompt": "Thinking through the task was mainly my responsibility.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "state-mental-effort",
+          "prompt": "Solving the games required a great deal of mental effort.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "state-confidence-independent",
+          "prompt": "I feel confident that I could solve similar games without AI support.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "state-ownership",
+          "prompt": "The guesses made during this session felt like my own decisions.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "state-prefer-ai",
+          "prompt": "For another session of this task, I would prefer to have AI support available.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        }
+      ],
+      "style": {
+        "width": "75%",
+        "maxWidth": "960px",
+        "margin": "0 auto"
+      }
+    },
+    "sona-completion": {
+      "type": "website",
+      "path": "HAIC_study/assets/sona_completion.html",
+      "description": "Server-side SONA credit granting for the current part.",
+      "response": [
+        {
+          "id": "sonaCreditGranted",
+          "prompt": "SONA credit confirmation",
+          "required": true,
+          "type": "shortText",
+          "location": "sidebar"
+        }
+      ],
+      "style": {
+        "minHeight": "420px"
+      },
+      "withSidebar": true,
+      "sidebarWidth": 280
     }
   },
-  "sequence": {
-    "order": "fixed",
-    "components": [
-      "introduction",
-      "game-tutorial-video",
-      {
-        "order": "latinSquare",
-        "numSamples": 1,
-        "components": [
-          "mastermind_control",
-          "mastermind_judge",
-          "mastermind_advisor"
-        ],
-        "id": "balanced-game-condition"
-      },
-      "cognitive_responsibility",
-      "cognitive-load-intrinsic",
-      "cognitive-load-extraneous",
-      "cognitive-load-germane",
-      "common-method-bias",
-      "Ownership",
-      "control-trust-willingness",
-      "control-mails-short",
-      "control-game-llm-experience",
-      "demographics"
-    ]
-  }
+  "sequences": {}
 }

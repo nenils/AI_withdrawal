@@ -47,7 +47,10 @@
     "test-randomization",
     "test-skip-logic",
     "test-step-logic",
-    "HAIC_study"
+    "HAIC_part_1",
+    "HAIC_part_2",
+    "HAIC_part_3",
+    "HAIC_part_4"
   ],
   "configs": {
     "tutorial": {
@@ -212,8 +215,17 @@
       "path": "example-VLAT-adaptive/config.json",
       "test": true
     },
-    "HAIC_study": {
-      "path": "HAIC_study/assets/config.json"
+    "HAIC_part_1": {
+      "path": "HAIC_part_1/config.json"
+    },
+    "HAIC_part_2": {
+      "path": "HAIC_part_2/config.json"
+    },
+    "HAIC_part_3": {
+      "path": "HAIC_part_3/config.json"
+    },
+    "HAIC_part_4": {
+      "path": "HAIC_part_4/config.json"
     }
   }
 }

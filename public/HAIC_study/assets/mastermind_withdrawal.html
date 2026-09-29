@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mastermind</title>
+  <script src="../../revisitUtilities/revisit-communicate.js"></script>
+  <style>
+    :root { color-scheme: light; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color:#17202a; background:#f4f6f8; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:18px; }
+    button { font:inherit; }
+    .shell { max-width:1050px; margin:0 auto; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; border-bottom:1px solid #ccd3da; padding:0 0 14px; margin-bottom:16px; }
+    h1 { margin:0; font-size:24px; letter-spacing:0; }
+    .meta { display:flex; flex-wrap:wrap; gap:8px; }
+    .badge { border:1px solid #b7c0ca; background:#fff; padding:5px 9px; border-radius:6px; font-size:13px; font-weight:650; }
+    .notice { border-left:5px solid #2b6cb0; background:#eaf3fb; padding:13px 15px; margin:0 0 16px; }
+    .notice.withdrawn { border-color:#b42318; background:#fff0ee; }
+    .notice.introduced { border-color:#18794e; background:#eaf7f0; }
+    .notice strong { display:block; margin-bottom:3px; }
+    .layout { display:grid; grid-template-columns:minmax(0, 1fr) 330px; gap:18px; align-items:start; }
+    .workspace, .support { background:#fff; border:1px solid #ccd3da; border-radius:8px; padding:16px; }
+    .support { position:sticky; top:12px; }
+    .support[hidden] { display:none; }
+    .palette { display:flex; flex-wrap:wrap; gap:9px; margin:14px 0; }
+    .color { width:42px; height:42px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 1px #77818c; cursor:pointer; }
+    .color:focus-visible, .peg:focus-visible { outline:3px solid #1f6feb; outline-offset:2px; }
+    .color.selected { box-shadow:0 0 0 3px #17202a; }
+    .guess { display:flex; align-items:center; gap:10px; min-height:58px; }
+    .peg { width:48px; height:48px; border-radius:50%; border:2px solid #59636e; background:#fff; cursor:pointer; flex:0 0 auto; }
+    .actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
+    .primary, .secondary { border:0; border-radius:6px; padding:10px 14px; font-weight:700; cursor:pointer; }
+    .primary { color:#fff; background:#155eef; }
+    .secondary { color:#17202a; background:#e9edf1; border:1px solid #c7ced6; }
+    button:disabled { cursor:not-allowed; opacity:.5; }
+    .history { margin-top:18px; border-top:1px solid #d6dce2; padding-top:12px; }
+    .history-row { display:grid; grid-template-columns:34px 1fr 112px; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #edf0f2; }
+    .mini-pegs { display:flex; gap:6px; }
+    .mini { width:28px; height:28px; border:1px solid #69737d; border-radius:50%; }
+    .feedback { display:flex; gap:4px; align-items:center; font-size:13px; }
+    .feedback-dot { width:12px; height:12px; border-radius:50%; border:1px solid #333; display:inline-block; }
+    .feedback-dot.black { background:#111; }
+    .feedback-dot.white { background:#fff; }
+    .support h2 { font-size:17px; margin:0 0 8px; }
+    .support-copy { font-size:14px; color:#4b5563; margin:0 0 12px; }
+    .ai-output { min-height:90px; background:#f5f7f9; border:1px solid #d5dbe1; padding:11px; font-size:14px; white-space:pre-wrap; margin-top:12px; }
+    .lock { background:#fff; border:1px solid #ccd3da; border-radius:8px; padding:28px; text-align:center; }
+    .lock h2 { margin-top:0; }
+    .countdown { font-size:28px; font-weight:800; margin:18px 0; font-variant-numeric:tabular-nums; }
+    .status { min-height:24px; margin-top:12px; font-weight:650; }
+    .error { color:#b42318; }
+    .success { color:#18794e; }
+    .modal { position:fixed; inset:0; background:rgba(22,27,34,.72); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
+    .modal[hidden] { display:none; }
+    .modal-panel { width:min(520px, 100%); background:#fff; border-radius:8px; padding:24px; border-top:7px solid #b42318; }
+    .modal-panel.introduction { border-color:#18794e; }
+    .modal-panel h2 { margin-top:0; }
+    @media (max-width:760px) { body{padding:10px}.layout{grid-template-columns:1fr}.support{position:static}.topbar{align-items:flex-start;flex-direction:column}.history-row{grid-template-columns:28px 1fr 90px}.peg{width:43px;height:43px} }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <h1>Mastermind</h1>
+      <div class="meta">
+        <span class="badge" id="conditionBadge">Loading</span>
+        <span class="badge" id="sessionBadge">Session -/4</span>
+        <span class="badge" id="roundBadge">Game -/4</span>
+        <span class="badge" id="attemptBadge">Attempt -/10</span>
+      </div>
+    </header>
+
+    <section id="loading" class="lock"><h2>Preparing your session</h2><p>Please wait.</p></section>
+    <section id="complete" class="lock" hidden>
+      <h2>This session's games are complete</h2>
+      <p>Please continue to the session questionnaire. SONA credit is granted only after the full part is submitted.</p>
+    </section>
+
+    <div id="game" hidden>
+      <div id="supportNotice" class="notice"></div>
+      <div class="layout">
+        <section class="workspace">
+          <p>Choose four colors. Colors may repeat. Black feedback means correct color and position; white means correct color in the wrong position.</p>
+          <div class="palette" id="palette" aria-label="Color palette"></div>
+          <div class="guess" id="currentGuess" aria-label="Current guess"></div>
+          <div class="actions">
+            <button class="primary" id="submitGuess">Submit guess</button>
+            <button class="secondary" id="clearGuess">Clear</button>
+          </div>
+          <div class="status" id="status" aria-live="polite"></div>
+          <div class="history" id="history"></div>
+        </section>
+        <aside class="support" id="supportPanel" hidden>
+          <h2 id="supportTitle">AI support</h2>
+          <p class="support-copy" id="supportCopy"></p>
+          <button class="primary" id="askAI">Ask AI</button>
+          <button class="secondary" id="applyAI" hidden>Apply suggestion</button>
+          <div class="ai-output" id="aiOutput">AI output will appear here.</div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal" id="phaseModal" hidden>
+    <div class="modal-panel" id="phasePanel">
+      <h2 id="phaseTitle"></h2>
+      <p id="phaseText"></p>
+      <button class="primary" id="acknowledgePhase">Continue</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+    var COLORS = ["Blue", "Green", "Red", "Yellow", "Purple", "Orange"];
+    var COLOR_CSS = { Blue:"#2878d0", Green:"#2f9e44", Red:"#d64545", Yellow:"#f4c430", Purple:"#805ad5", Orange:"#ef7d22" };
+    var condition = null;
+    var participantId = null;
+    var partNumber = null;
+    var state = null;
+    var currentGuess = [null, null, null, null];
+    var selectedColor = COLORS[0];
+    var aiSuggestion = null;
+    var pendingEvents = [];
+    var lastMouseAt = 0;
+    var acknowledgedPhases = {};
+
+    function el(id) { return document.getElementById(id); }
+    function now() { return new Date().toISOString(); }
+    function event(type, data) {
+      pendingEvents.push({
+        type: type,
+        data: data || {},
+        timestamp: now(),
+        sessionNumber: state ? state.currentSession : 1,
+        roundNumber: state && state.game ? state.game.round : null
+      });
+      if (pendingEvents.length >= 40) flushEvents();
+    }
+    function flushEvents(useBeacon) {
+      if (!participantId || !pendingEvents.length) return;
+      var batch = pendingEvents.splice(0, 500);
+      var body = JSON.stringify({ participantId: participantId, events: batch });
+      if (useBeacon && navigator.sendBeacon) {
+        navigator.sendBeacon("/api/withdrawal/events", new Blob([body], {type:"application/json"}));
+        return;
+      }
+      fetch("/api/withdrawal/events", { method:"POST", headers:{"Content-Type":"application/json"}, body:body, keepalive:true })
+        .catch(function () { pendingEvents = batch.concat(pendingEvents); });
+    }
+    function api(path, payload) {
+      return fetch(path, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      }).then(function (response) {
+        return response.json().then(function (body) {
+          if (!response.ok) throw new Error(body.detail || "Request failed");
+          return body;
+        });
+      });
+    }
+    function postRevisit() {
+      if (!window.Revisit || !state) return;
+      var answers = {
+        mastermindGame_condition: condition,
+        mastermindGame_currentSession: state.currentSession,
+        mastermindGame_state: JSON.stringify(state),
+        mastermindGame_completedSessions: JSON.stringify(state.completedSessions || []),
+        mastermindGame_lastUpdatedAt: now()
+      };
+      if (state.partGameComplete) answers["played-game"] = "complete";
+      try { Revisit.postAnswers(answers); } catch (ignore) {}
+    }
+    function phaseKey() {
+      return state.currentSession + ":" + (state.game ? state.game.round : 0) + ":" + state.supportPhase;
+    }
+    function maybeShowPhaseModal() {
+      if (condition === "control" || !state.game) return;
+      var isIntroduction = state.supportPhase === "introduced";
+      var isWithdrawal = state.supportPhase === "withdrawn" && state.currentSession === 4 && state.game.round === 2;
+      var key = phaseKey();
+      if ((!isIntroduction && !isWithdrawal) || acknowledgedPhases[key]) return;
+      el("phaseTitle").textContent = isIntroduction ? "AI support is now available" : "AI support has been withdrawn";
+      el("phaseText").textContent = isIntroduction
+        ? (condition === "advisor" ? "From this game onward, the AI Advisor can propose and prefill guesses." : "From this game onward, the AI Judge can review guesses when you request it.")
+        : "For the remaining games in this session, you must solve the code without AI support.";
+      el("phasePanel").className = "modal-panel" + (isIntroduction ? " introduction" : "");
+      el("phaseModal").hidden = false;
+      event(isIntroduction ? "supportIntroduced" : "supportWithdrawn", { condition:condition });
+    }
+    function renderNotice() {
+      var notice = el("supportNotice");
+      notice.className = "notice";
+      if (condition === "control") {
+        notice.innerHTML = "<strong>No AI support</strong>You will solve all games independently.";
+      } else if (state.supportAvailable) {
+        notice.classList.add(state.supportPhase === "introduced" ? "introduced" : "");
+        notice.innerHTML = "<strong>AI support available</strong>" + (condition === "advisor" ? "The AI Advisor can propose your next guess." : "The AI Judge can review a guess when asked.");
+      } else if (state.supportPhase === "withdrawn") {
+        notice.classList.add("withdrawn");
+        notice.innerHTML = "<strong>AI support withdrawn</strong>You must complete the remaining games without AI assistance.";
+      } else {
+        notice.innerHTML = "<strong>AI support not yet available</strong>You must currently solve the game independently.";
+      }
+    }
+    function renderPalette() {
+      el("palette").innerHTML = "";
+      COLORS.forEach(function (color) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "color" + (selectedColor === color ? " selected" : "");
+        button.style.background = COLOR_CSS[color];
+        button.title = color;
+        button.setAttribute("aria-label", color);
+        button.onclick = function () { selectedColor = color; renderPalette(); event("paletteColorSelected", {color:color}); };
+        el("palette").appendChild(button);
+      });
+    }
+    function renderGuess() {
+      el("currentGuess").innerHTML = "";
+      currentGuess.forEach(function (color, index) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "peg";
+        button.style.background = color ? COLOR_CSS[color] : "#fff";
+        button.title = color || "Empty position " + (index + 1);
+        button.onclick = function () {
+          currentGuess[index] = selectedColor;
+          renderGuess();
+          event("pegPlaced", {position:index, color:selectedColor});
+        };
+        el("currentGuess").appendChild(button);
+      });
+    }
+    function feedbackMarkup(feedback) {
+      var html = "";
+      for (var black = 0; black < feedback.black; black++) html += '<span class="feedback-dot black"></span>';
+      for (var white = 0; white < feedback.white; white++) html += '<span class="feedback-dot white"></span>';
+      return html || "No matches";
+    }
+    function renderHistory() {
+      var guesses = state.game ? state.game.guesses : [];
+      var html = guesses.length ? "<strong>Current game</strong>" : "<strong>No guesses submitted yet</strong>";
+      guesses.forEach(function (item) {
+        html += '<div class="history-row"><span>' + item.attempt + '</span><span class="mini-pegs">';
+        item.guess.forEach(function (color) { html += '<span class="mini" style="background:' + COLOR_CSS[color] + '"></span>'; });
+        html += '</span><span class="feedback">' + feedbackMarkup(item.feedback) + '</span></div>';
+      });
+      el("history").innerHTML = html;
+    }
+    function renderSupport() {
+      var shown = condition !== "control" && state.supportAvailable;
+      el("supportPanel").hidden = !shown;
+      if (!shown) return;
+      if (condition === "advisor") {
+        el("supportTitle").textContent = "AI Advisor";
+        el("supportCopy").textContent = "The advisor proposes a next guess. You may apply it and still change any position before submitting.";
+        el("askAI").textContent = "Request suggestion";
+      } else {
+        el("supportTitle").textContent = "AI Judge";
+        el("supportCopy").textContent = "Build a complete guess first, then ask the judge to review it before you submit.";
+        el("askAI").textContent = "Review current guess";
+      }
+    }
+    function render() {
+      el("loading").hidden = true;
+      el("complete").hidden = true;
+      el("game").hidden = true;
+      el("conditionBadge").textContent = condition === "control" ? "No support" : "AI " + condition.charAt(0).toUpperCase() + condition.slice(1);
+      el("sessionBadge").textContent = "Session " + state.currentSession + "/4";
+      if (state.partGameComplete || state.partCredited) {
+        el("complete").hidden = false;
+        postRevisit();
+        return;
+      }
+      if (!state.game) throw new Error("No active game was returned for this SONA part");
+      el("game").hidden = false;
+      el("roundBadge").textContent = "Game " + state.game.round + "/4";
+      el("attemptBadge").textContent = "Attempt " + (state.game.guesses.length + 1) + "/10";
+      renderNotice(); renderPalette(); renderGuess(); renderHistory(); renderSupport(); maybeShowPhaseModal(); postRevisit();
+      if (condition === "advisor" && state.supportAvailable && !aiSuggestion) requestAI(true);
+    }
+    function setBusy(busy) {
+      el("submitGuess").disabled = busy;
+      el("askAI").disabled = busy;
+    }
+    function submitGuess() {
+      if (currentGuess.some(function (value) { return !value; })) {
+        el("status").className = "status error";
+        el("status").textContent = "Fill all four positions before submitting.";
+        return;
+      }
+      var submitted = currentGuess.slice();
+      setBusy(true);
+      event("guessSubmitted", {guess:submitted, aiSuggestion:aiSuggestion, aiExactFollow:JSON.stringify(submitted) === JSON.stringify(aiSuggestion)});
+      api("/api/withdrawal/guess", { participantId:participantId, condition:condition, partNumber:partNumber, guess:submitted })
+        .then(function (next) {
+          state = next;
+          currentGuess = [null, null, null, null];
+          aiSuggestion = null;
+          el("applyAI").hidden = true;
+          el("aiOutput").textContent = "AI output will appear here.";
+          el("status").className = "status " + (next.won ? "success" : "");
+          if (next.roundFinished) {
+            el("status").textContent = next.won ? "Code solved. The next game is ready." : "Ten attempts reached. The next game is ready.";
+            event("roundCompleted", {won:next.won, attempts:next.attempt, revealedSecret:next.revealedSecret});
+          } else {
+            el("status").textContent = next.feedback.black + " black, " + next.feedback.white + " white";
+          }
+          if (next.sessionFinished) event("sessionCompleted", {completedSession:partNumber});
+          flushEvents();
+          render();
+        })
+        .catch(function (error) { el("status").className="status error"; el("status").textContent=error.message; })
+        .finally(function () { setBusy(false); });
+    }
+    function requestAI(automatic) {
+      if (!state.supportAvailable) return;
+      if (condition === "judge" && currentGuess.some(function (value) { return !value; })) {
+        el("aiOutput").textContent = "Complete your proposed guess before requesting a review.";
+        return;
+      }
+      setBusy(true);
+      el("aiOutput").textContent = "AI is evaluating the game history...";
+      var guessHistory = {};
+      var feedbackHistory = {};
+      state.game.guesses.forEach(function (item) { guessHistory[item.attempt] = item.guess; feedbackHistory[item.attempt] = item.feedback; });
+      var payload = {
+        reason: condition === "advisor" ? "advisor suggestion" : "judge review",
+        round: state.game.round,
+        codeLength: 4,
+        availableColors: COLORS,
+        maxAttemptsPerRound: 10,
+        attempt: state.game.guesses.length + 1,
+        guessHistory: guessHistory,
+        feedbackHistory: feedbackHistory
+      };
+      fetch("/api/rl/predict", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)})
+        .then(function (response) { if (!response.ok) throw new Error("AI service unavailable"); return response.json(); })
+        .then(function (result) {
+          var modelSuggestion = result.guess || result.suggestion || result.next_guess || result.action;
+          if (!Array.isArray(modelSuggestion) || modelSuggestion.length !== 4) throw new Error("AI returned an invalid suggestion");
+          var proposed = condition === "judge" ? currentGuess.slice() : null;
+          return explainSuggestion(modelSuggestion, proposed, guessHistory, feedbackHistory)
+            .catch(function () {
+              return condition === "advisor"
+                ? "Suggested guess: " + modelSuggestion.join(", ") + "."
+                : "Recommended guess: " + modelSuggestion.join(", ") + ".";
+            })
+            .then(function (explanation) {
+              aiSuggestion = parseSuggestedGuess(explanation, modelSuggestion);
+              el("aiOutput").textContent = explanation;
+              el("applyAI").hidden = false;
+              event("aiSuggestionReceived", {automatic:automatic, suggestion:aiSuggestion, proposedGuess:proposed, explanation:explanation});
+              if (condition === "advisor") applyAI(true);
+            });
+        })
+        .catch(function (error) { el("aiOutput").textContent = error.message; event("aiRequestFailed", {message:error.message}); })
+        .finally(function () { setBusy(false); });
+    }
+    function applyAI(automatic) {
+      if (!aiSuggestion) return;
+      currentGuess = aiSuggestion.slice();
+      renderGuess();
+      event("aiSuggestionApplied", {automatic:automatic, suggestion:aiSuggestion});
+    }
+    function parseSuggestedGuess(text, fallback) {
+      var match = text.match(/(?:PREDICTION|FINAL GUESS)\s*:\s*\[([^\]]+)\]/i);
+      if (!match) return fallback;
+      var parsed = match[1].split(",").map(function (value) { return value.trim(); });
+      return parsed.length === 4 && parsed.every(function (color) { return COLORS.indexOf(color) >= 0; }) ? parsed : fallback;
+    }
+    function explainSuggestion(modelSuggestion, proposedGuess, guessHistory, feedbackHistory) {
+      var history = Object.keys(guessHistory).map(function (attempt) {
+        var feedback = feedbackHistory[attempt];
+        return "Attempt " + attempt + ": [" + guessHistory[attempt].join(", ") + "] -> " + feedback.black + " black, " + feedback.white + " white";
+      }).join("\n") || "No earlier attempts in this game.";
+      var prompt;
+      if (condition === "advisor") {
+        prompt = "You are the AI Advisor in a Mastermind study. Explain the trained model's next suggestion briefly and clearly. " +
+          "The participant may apply or edit it. History:\n" + history + "\nModel suggestion: [" + modelSuggestion.join(", ") + "]\n" +
+          "End with exactly PREDICTION: [" + modelSuggestion.join(", ") + "]";
+      } else {
+        prompt = "You are the AI Judge in a Mastermind study. Review the participant's proposed guess using the feedback history. " +
+          "History:\n" + history + "\nParticipant proposal: [" + proposedGuess.join(", ") + "]\n" +
+          "Trained model recommendation: [" + modelSuggestion.join(", ") + "]\nGive a brief review and end with exactly FINAL GUESS: [" + modelSuggestion.join(", ") + "]";
+      }
+      return api("/api/llm/chat", {
+        participantId: participantId,
+        studySession: state.currentSession,
+        studyRound: state.game.round,
+        temperature: 0.2,
+        max_tokens: 220,
+        messages: [{role:"user", content:prompt}]
+      }).then(function (response) {
+        var reply = response.choices && response.choices[0] && response.choices[0].message && response.choices[0].message.content;
+        return reply || "The AI returned no explanation.";
+      });
+    }
+    function loadState() {
+      api("/api/withdrawal/state", {participantId:participantId, condition:condition, partNumber:partNumber})
+        .then(function (result) { state=result; condition=result.condition; event("stateLoaded", {storage:result.storage, supportPhase:result.supportPhase, condition:condition}); render(); })
+        .catch(function (error) { el("loading").innerHTML = "<h2>Unable to load the session</h2><p class=\"error\">" + error.message + "</p>"; });
+    }
+
+    el("submitGuess").onclick = submitGuess;
+    el("clearGuess").onclick = function () { currentGuess=[null,null,null,null]; renderGuess(); event("guessCleared"); };
+    el("askAI").onclick = function () { requestAI(false); };
+    el("applyAI").onclick = function () { applyAI(false); };
+    el("acknowledgePhase").onclick = function () { acknowledgedPhases[phaseKey()] = true; el("phaseModal").hidden=true; event("supportNoticeAcknowledged", {phase:state.supportPhase}); flushEvents(); };
+    document.addEventListener("click", function (e) { event("click", {x:e.clientX, y:e.clientY, target:e.target && (e.target.id || e.target.className || e.target.tagName)}); });
+    document.addEventListener("mousemove", function (e) { if (Date.now()-lastMouseAt < 250) return; lastMouseAt=Date.now(); event("mouseMove", {x:e.clientX,y:e.clientY}); });
+    document.addEventListener("keydown", function (e) { event("keyDown", {key:e.key, code:e.code}); });
+    document.addEventListener("visibilitychange", function () { event("visibilityChanged", {hidden:document.hidden}); if (document.hidden) flushEvents(); });
+    window.addEventListener("beforeunload", function () { event("pageUnloaded"); flushEvents(true); });
+    setInterval(flushEvents, 15000);
+
+    Revisit.onDataReceive(function (data) {
+      participantId = data.__revisit && data.__revisit.participantId;
+      partNumber = Number(data.partNumber);
+      if (!participantId || partNumber < 1 || partNumber > 4) {
+        el("loading").innerHTML = "<h2>Unable to identify this study session</h2><p class=\"error\">Please reopen the original participant link.</p>";
+        return;
+      }
+      event("pageLoaded", {partNumber:partNumber, userAgent:navigator.userAgent});
+      loadState();
+    });
+  }());
+  </script>
+</body>
+</html>
