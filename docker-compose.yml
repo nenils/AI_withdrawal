@@ -1,3 +1,5 @@
+name: ai-withdrawal
+
 services:
   study:
     build:
@@ -14,12 +16,28 @@ services:
     ports:
       - "0.0.0.0:${STUDY_HTTP_PORT:-8080}:80"
     depends_on:
-      - haic-api
+      haic-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   haic-api:
     build:
       context: ./services/haic_api
     env_file:
-      .env.docker
+      - ${STUDY_ENV_FILE:-.env.docker}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped

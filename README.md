@@ -1,27 +1,58 @@
-# reVISit study – Interactive, Web-Based User Studies.  
+# AI Support Withdrawal Study
 
-Create your own interactive, web-based data visualization user studies by cloning/forking and editing configuration files and adding stimuli in the `public` folder. 
+This repository contains the four-part longitudinal Mastermind experiment for studying the introduction and withdrawal of AI support. It is built on reVISit and deployed with Docker Compose, a Python API, nginx, and self-hosted Supabase.
 
-reVISit introduces reVISit.spec a DSL for specifying study setups (consent forms, training, trials, etc) for interactive web based studies. You describe your experimental setup in reVISit.spec, add your stimuli as images, forms, html pages, or React components, build and deploy – and you're ready to run your study. For tutorials and documentation, see the [reVISit website](https://revisit.dev). 
+## Study structure
 
-## Build Instructions
+- Four SONA parts separated by 24 hours.
+- Four complete Mastermind games per part, with up to ten attempts per game.
+- Three retained conditions: control, AI Advisor, and AI Judge.
+- AI support introduced in Session 1 game 4 and explicitly withdrawn after Session 4 game 1.
+- Server-authoritative random codes, scoring, condition assignment, event tracking, and SONA credit granting.
 
-To run this demo experiment locally, you will need to install node on your computer. 
+See [AI_WITHDRAWAL_STUDY.md](AI_WITHDRAWAL_STUDY.md) for the experimental and SONA configuration.
 
-* Clone `https://github.com/revisit-studies/study`
-* Run `yarn install`. If you don't have yarn installed, run `npm i -g yarn`. 
-* To run locally, run `yarn serve`.
-* Go to [http://localhost:8080](http://localhost:8080) to view it in your browser. The page will reload when you make changes. 
+## Local development
 
-## Release Instructions
+Install dependencies and start reVISit:
 
-Releasing reVISit.dev happens automatically when a PR is merged into the `main` branch. The name of the pull request should be the title of the release, e.g. `v1.0.0`. Releasing creates a tag with the same name as the PR, but the official GitGub release should be created manually. The `main` branch is protected and requires two reviews before merging.
+```bash
+corepack enable
+yarn install --frozen-lockfile
+VITE_STORAGE_ENGINE=localStorage yarn serve
+```
 
-The workflow for release looks as follows:
-Develop features on feature branch
-| PRs
-Dev branch
-| PR (1 per release)
-Main branch
-| Run release workflow on merge
-References are updated and commit is tagged
+The frontend is then available at:
+
+```text
+http://127.0.0.1:8080/HAIC_part_1/?sona_id=local-test
+```
+
+Run the API separately from `services/haic_api`, or use Docker Compose for an integrated environment.
+
+## Docker deployment
+
+Production deployment retains the previous project's split Compose setup: start Supabase first, then start the study/API stack on the shared private network.
+
+```bash
+docker compose --env-file supabase/.env -f supabase/docker-compose.yml up -d
+
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml \
+  up --build -d
+```
+
+Before deploying, copy `.env.docker.example` to `.env.docker`, replace all placeholder values, configure `supabase/.env`, and install the TLS certificate files. Full instructions are in [DEPLOY_LRZ_DOCKER.md](DEPLOY_LRZ_DOCKER.md).
+
+Never commit `.env.docker`, production Supabase secrets, private keys, participant exports, or database backups.
+
+## Verification
+
+```bash
+(cd services/haic_api && python3 -m unittest test_withdrawal_store.py)
+yarn build
+yarn playwright test tests/withdrawal-mastermind.spec.ts tests/withdrawal-sona-parts.spec.ts --project=chromium
+```

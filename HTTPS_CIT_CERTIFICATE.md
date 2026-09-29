@@ -3,7 +3,7 @@
 This project can serve the study at:
 
 ```text
-https://iivm6.cit.tum.de/HAIC_study/
+https://iivm6.cit.tum.de/HAIC_part_1/
 ```
 
 The repository contains the nginx and Docker configuration, but the certificate and private key must stay on the VM and must never be committed.
@@ -24,7 +24,7 @@ Port 80 is used for the HTTP-to-HTTPS redirect. Port 443 is used for HTTPS.
 Run this on the VM:
 
 ```bash
-cd ~/revisit_study
+cd ~/AI_withdrawal
 mkdir -p certs
 chmod 700 certs
 
@@ -74,24 +74,25 @@ Keep your real `OPENROUTER_API_KEY` only in `.env.docker` on the VM.
 
 ## 5. Start HTTPS Deployment
 
-Use the HTTPS compose override:
+Use the HTTPS and self-hosted Supabase Compose overrides:
 
 ```bash
-sudo docker-compose -f docker-compose.yml -f docker-compose.https.yml down
-sudo docker-compose -f docker-compose.yml -f docker-compose.https.yml up --build -d
-```
+sudo docker compose --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml down
 
-If your VM has the newer Docker Compose plugin, this also works:
-
-```bash
-sudo docker compose -f docker-compose.yml -f docker-compose.https.yml up --build -d
+sudo docker compose --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml up --build -d
 ```
 
 ## 6. Test
 
 ```bash
-curl -I http://iivm6.cit.tum.de/HAIC_study/
-curl -I https://iivm6.cit.tum.de/HAIC_study/
+curl -I http://iivm6.cit.tum.de/HAIC_part_1/
+curl -I https://iivm6.cit.tum.de/HAIC_part_1/
 curl -I https://iivm6.cit.tum.de/api/health
 ```
 
@@ -105,5 +106,5 @@ HTTPS on port 443 -> 200 OK
 Participant URL:
 
 ```text
-https://iivm6.cit.tum.de/HAIC_study/?PROLIFIC_PID={{%PROLIFIC_PID%}}
+https://iivm6.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
 ```

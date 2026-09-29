@@ -1,0 +1,15 @@
+services:
+  study:
+    networks:
+      - default
+      - supabase
+
+  haic-api:
+    networks:
+      - default
+      - supabase
+
+networks:
+  supabase:
+    external: true
+    name: supabase_default

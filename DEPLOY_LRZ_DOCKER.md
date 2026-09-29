@@ -1,132 +1,148 @@
-# Deploying the HAIC Study on an LRZ VM with Docker
+# Deploying the AI Withdrawal Study on an LRZ VM
 
-This setup runs two containers:
+The deployment follows the previous study's Docker structure:
 
-- `study`: builds the ReVISit frontend and serves it with Nginx.
-- `haic-api`: provides `/api/rl/predict` with a dummy Mastermind RL model and `/api/llm/chat` as a server-side LLM proxy.
+- `study`: builds reVISit and serves it through nginx.
+- `haic-api`: runs the Mastermind, RL/LLM, event, and SONA-credit API.
+- `supabase/*`: runs the persistent PostgreSQL, PostgREST, Storage, and supporting Supabase services.
+
+The application and Supabase remain separate Compose projects. `docker-compose.selfhosted-supabase.yml` joins the frontend and API to Supabase's private Docker network.
 
 ## 1. Prepare the VM
 
-Install Docker and the Docker Compose plugin on the LRZ VM, then copy this repository to the VM.
+Install Docker Engine and the Docker Compose plugin, then clone the deployment repository:
 
-## 2. Configure tokens and URLs
+```bash
+git clone https://github.com/nenils/AI_withdrawal.git
+cd AI_withdrawal
+```
 
-The compose setup uses a dedicated Docker env file. Create it from the example:
+Allow inbound TCP ports `80` and `443`. Supabase's Kong, Analytics, and MinIO ports bind only to `127.0.0.1` and should not be opened in the firewall.
+
+## 2. Configure Supabase
+
+Edit `supabase/.env` before the first start. Replace every value marked as insecure, including the PostgreSQL password, JWT secret, anon key, service-role key, dashboard password, and Logflare key. The JWT secret and generated anon/service-role tokens must correspond.
+
+For the bundled same-domain deployment, set:
+
+```env
+SITE_URL=https://iivm6.cit.tum.de
+API_EXTERNAL_URL=https://iivm6.cit.tum.de/supabase
+SUPABASE_PUBLIC_URL=https://iivm6.cit.tum.de/supabase
+```
+
+Start Supabase first so its `supabase_default` Docker network exists:
+
+```bash
+docker compose --env-file supabase/.env -f supabase/docker-compose.yml up -d
+```
+
+The withdrawal database migration is mounted into PostgreSQL and runs automatically when a new database volume is initialized. If the database volume already exists, apply it once:
+
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres < supabase/volumes/db/init/withdrawal_sessions.sql
+```
+
+## 3. Configure the study
+
+Create the VM-local environment file:
 
 ```bash
 cp .env.docker.example .env.docker
+chmod 600 .env.docker
 ```
 
-Put your LLM token in `.env.docker`:
+Fill in at least:
 
-```bash
-OPENROUTER_API_KEY=sk-or-v1-...
-OPENROUTER_MODEL=meta-llama/llama-3.1-70b-instruct
-STUDY_PUBLIC_URL=https://your-lrz-vm.example
+```env
+VITE_STORAGE_ENGINE=supabase
+VITE_SUPABASE_URL=https://iivm6.cit.tum.de/supabase
+VITE_SUPABASE_ANON_KEY=<same anon key as supabase/.env>
+
+SUPABASE_URL=http://kong:8000
+SUPABASE_SERVICE_ROLE_KEY=<same service-role key as supabase/.env>
+
+STUDY_PUBLIC_URL=https://iivm6.cit.tum.de
+OPENROUTER_API_KEY=<server-side key>
+
+SONA_PART_1_COMPLETION_URL=<part-1 server-side completion URL>
+SONA_PART_2_COMPLETION_URL=<part-2 server-side completion URL>
+SONA_PART_3_COMPLETION_URL=<part-3 server-side completion URL>
+SONA_PART_4_COMPLETION_URL=<part-4 server-side completion URL>
+SONA_CREDIT_TEST_MODE=false
 ```
 
-Do not put the LLM token in any HTML file. The browser calls `/api/llm/chat`; the `haic-api` container attaches the token server-side.
+Keep all real credentials in `.env.docker` or `supabase/.env`; never add them to Git. Passing `--env-file .env.docker` is required because the frontend Supabase values are Docker build arguments.
 
-## 3. Build and run
+## 4. Certificates
 
-```bash
-docker compose up --build -d
-```
-
-Open:
+Install the CIT/ITO certificate and key as documented in `HTTPS_CIT_CERTIFICATE.md`:
 
 ```text
-http://<vm-hostname-or-ip>:8080
+certs/iivm6.cit.tum.de.fullchain.pem
+certs/iivm6.cit.tum.de.key
 ```
 
-Important: `localhost` means "this same machine". If the browser is running on your laptop, `http://localhost:8080` points to your laptop, not to the LRZ VM.
+Certificate files are ignored by Git and mounted read-only into nginx.
 
-For testing from your laptop without a domain, use an SSH tunnel:
+## 5. Build and start
 
 ```bash
-ssh -L 8080:localhost:8080 neni@<vm-hostname-or-ip>
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml \
+  up --build -d
 ```
 
-Keep that SSH session open, then open this on your laptop:
+Check container health and logs:
+
+```bash
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml \
+  ps
+
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml \
+  logs -f
+```
+
+## 6. Verify
+
+```bash
+curl -I http://iivm6.cit.tum.de/
+curl -I https://iivm6.cit.tum.de/HAIC_part_1/
+curl https://iivm6.cit.tum.de/api/health
+curl -I https://iivm6.cit.tum.de/supabase/rest/v1/
+```
+
+HTTP should redirect to HTTPS. The study and API should return successful responses. Supabase may return `401` without an API key, which still confirms that nginx can reach Kong.
+
+The four SONA Study URLs are:
 
 ```text
-http://localhost:8080
+https://iivm6.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
+https://iivm6.cit.tum.de/HAIC_part_2/?sona_id=%SURVEY_CODE%
+https://iivm6.cit.tum.de/HAIC_part_3/?sona_id=%SURVEY_CODE%
+https://iivm6.cit.tum.de/HAIC_part_4/?sona_id=%SURVEY_CODE%
 ```
 
-If you open a browser directly on the VM, then `http://localhost:8080` is also correct there. If you want to access the study without an SSH tunnel, use `http://<vm-hostname-or-ip>:8080` and make sure LRZ/firewall rules allow inbound TCP traffic on port `8080`.
+Test them with a fake SONA participant and invitation code before opening recruitment.
 
-If you use a reverse proxy or LRZ-provided HTTPS endpoint, point it to port `8080` and set `STUDY_PUBLIC_URL` to the public HTTPS URL.
+## 7. Persistence and backups
 
-## 4. Mastermind RL model
-
-The low cognitive responsibility Advisor condition calls this endpoint once per Advisor iteration:
-
-```text
-/api/rl/predict
-```
-
-The endpoint is implemented in:
-
-```text
-services/haic_api/app.py
-services/haic_api/rl_model.py
-```
-
-Put your trained model artifact here:
-
-```text
-services/haic_api/models/mastermind_rl_model.pt
-```
-
-Then add this to `.env.docker`:
+Application containers are disposable. PostgreSQL data remains under `supabase/volumes/db/data`, and MinIO data remains under `supabase/volumes/storage`. Back up the database to storage outside the VM on a schedule, for example:
 
 ```bash
-RL_MODEL_PATH=/app/models/mastermind_rl_model.pt
+mkdir -p backups
+docker exec supabase-db pg_dump -U postgres -d postgres | gzip > "backups/supabase-$(date +%F-%H%M).sql.gz"
 ```
 
-If `RL_MODEL_PATH` is not set or the model cannot be loaded, the API uses the bundled dummy consistency-filter model. This keeps the study runnable for testing.
-
-The frontend sends:
-
-```json
-{
-  "round": 3,
-  "codeLength": 4,
-  "availableColors": ["Blue", "Green", "Red"],
-  "attempt": 2,
-  "guessHistory": { "1": ["Blue", "Green", "Red", "Blue"] },
-  "feedbackHistory": { "1": { "black": 1, "white": 2 } }
-}
-```
-
-Return:
-
-```json
-{ "guess": ["Green", "Blue", "Blue", "Red"] }
-```
-
-The loaded model should either be callable or expose `predict(state_dict)`. The `state_dict` contains `round`, `codeLength`, `availableColors`, `attempt`, `guessHistory`, and `feedbackHistory`.
-
-## 5. Useful commands
-
-```bash
-docker compose logs -f
-docker compose restart
-docker compose down
-docker compose up --build -d
-```
-
-Health check:
-
-```bash
-curl http://localhost:8080/api/health
-```
-
-Route check:
-
-```bash
-curl -I http://localhost:8080
-curl -I http://localhost:8080/HAIC_study
-```
-
-Both should return `200 OK` from the VM. If these work on the VM but the link fails in your laptop browser, the problem is network access to the VM, not the study build.
+Do not use `docker compose down -v` in production; `-v` removes named volumes.
