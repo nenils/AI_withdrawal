@@ -1,110 +1,129 @@
-# HTTPS Deployment With CIT/ITO Server Certificate
+# Public HTTPS on iivm11.cit.tum.de
 
-This project can serve the study at:
-
-```text
-https://iivm6.cit.tum.de/HAIC_part_1/
-```
-
-The repository contains the nginx and Docker configuration, but the certificate and private key must stay on the VM and must never be committed.
-
-## 1. Firewall
-
-Ask LRZ/IT to keep these inbound ports open for the VM:
+The production study is served at:
 
 ```text
-TCP 80
-TCP 443
+https://iivm11.cit.tum.de/HAIC_part_1/
 ```
 
-Port 80 is used for the HTTP-to-HTTPS redirect. Port 443 is used for HTTPS.
+nginx runs inside the `study` container, terminates TLS, redirects HTTP to HTTPS, serves reVISit, and proxies `/api/` and `/supabase/` to their private Docker services.
 
-## 2. Create A Private Key And CSR On The VM
+## 1. DNS and firewall
 
-Run this on the VM:
+Confirm that `iivm11.cit.tum.de` resolves to the VM's public address and that inbound TCP ports `80` and `443` are permitted. No Supabase, PostgreSQL, MinIO, or Python API port should be publicly exposed.
 
 ```bash
-cd ~/AI_withdrawal
-mkdir -p certs
-chmod 700 certs
-
-openssl req -new -newkey rsa:3072 -nodes \
-  -keyout certs/iivm6.cit.tum.de.key \
-  -out certs/iivm6.cit.tum.de.csr \
-  -subj "/CN=iivm6.cit.tum.de" \
-  -addext "subjectAltName=DNS:iivm6.cit.tum.de"
-
-chmod 600 certs/iivm6.cit.tum.de.key
+getent hosts iivm11.cit.tum.de
+sudo ss -ltnp | grep -E ':(80|443)\b'
 ```
 
-Submit `certs/iivm6.cit.tum.de.csr` through the CIT/ITO server certificate process.
+Port 80 is retained only for the HTTPS redirect and certificate-related reachability. Participant traffic uses port 443.
 
-## 3. Install The Returned Certificate
+## 2. Obtain the CIT certificate with rbg-cert
 
-After CIT/ITO returns the server certificate and intermediate chain, place them in `certs/`.
+For CIT Ubuntu VMs, follow the ITO server-certificate procedure and use the centrally maintained `rbg-cert` installation. Do not use `mkcert`; its local CA is suitable only for local development. Manual CSR issuance is an exception when neither `rbg-cert` nor Let's Encrypt is possible.
 
-The nginx config expects:
-
-```text
-certs/iivm6.cit.tum.de.key
-certs/iivm6.cit.tum.de.fullchain.pem
-```
-
-If CIT/ITO gives you separate files, create the full chain by concatenating the server certificate first, then intermediate certificates:
+First confirm that the VM and all required aliases are correctly registered in the StrukturDB. Then run:
 
 ```bash
-cat certs/iivm6.cit.tum.de.crt certs/intermediate-ca.pem > certs/iivm6.cit.tum.de.fullchain.pem
-chmod 600 certs/iivm6.cit.tum.de.key
-chmod 644 certs/iivm6.cit.tum.de.fullchain.pem
+sudo rbg-cert --show
+sudo rbg-cert --force-request
+sudo rbg-cert
+sudo ls -la /var/lib/rbg-cert/live
 ```
 
-Adjust the file names in the command to match the files you receive.
+The Docker configuration expects these automatically renewed files:
 
-## 4. Configure The Deployment Environment
+```text
+/var/lib/rbg-cert/live/iivm11.cit.tum.de.fullchain.pem
+/var/lib/rbg-cert/live/iivm11.cit.tum.de.privkey.pem
+```
 
-In the VM-local `.env.docker`, use:
+If `rbg-cert --show` reports a different canonical filename, update the two `ssl_certificate` paths in `docker/nginx/https.conf` to match it. Do not copy the private key into Git or relax its permissions.
+
+The ITO timer renews certificates automatically before expiry. The directory is mounted read-only into nginx using `TLS_CERT_DIR=/var/lib/rbg-cert/live`.
+
+## 3. Reload nginx after renewal
+
+Create a renewal hook so the running container starts using a renewed certificate:
+
+```bash
+sudo install -d -m 755 /usr/local/cert.d
+sudo nano /usr/local/cert.d/ai-withdrawal
+```
+
+Put this in the file:
+
+```sh
+#!/bin/sh
+docker kill --signal=HUP ai-withdrawal-study >/dev/null 2>&1 || true
+```
+
+Then enable it:
+
+```bash
+sudo chmod 755 /usr/local/cert.d/ai-withdrawal
+```
+
+This uses the supported `/usr/local/cert.d/` renewal-hook mechanism without modifying `rbg-cert` itself.
+
+## 4. Configure the deployment
+
+In `.env.docker`, set:
 
 ```env
 STUDY_HTTP_PORT=80
 STUDY_HTTPS_PORT=443
-STUDY_PUBLIC_URL=https://iivm6.cit.tum.de
+STUDY_PUBLIC_URL=https://iivm11.cit.tum.de
+VITE_SUPABASE_URL=https://iivm11.cit.tum.de/supabase
+TLS_CERT_DIR=/var/lib/rbg-cert/live
 ```
 
-Keep your real `OPENROUTER_API_KEY` only in `.env.docker` on the VM.
+The certificate directory and all secrets stay on the VM.
 
-## 5. Start HTTPS Deployment
+## 5. Start the public deployment
 
-Use the HTTPS and self-hosted Supabase Compose overrides:
+Start Supabase first:
 
 ```bash
-sudo docker compose --env-file .env.docker \
-  -f docker-compose.yml \
-  -f docker-compose.selfhosted-supabase.yml \
-  -f docker-compose.https.yml down
-
-sudo docker compose --env-file .env.docker \
-  -f docker-compose.yml \
-  -f docker-compose.selfhosted-supabase.yml \
-  -f docker-compose.https.yml up --build -d
+docker compose \
+  --env-file supabase/.env \
+  -f supabase/docker-compose.yml \
+  up -d
 ```
 
-## 6. Test
+Then build and start the public study:
 
 ```bash
-curl -I http://iivm6.cit.tum.de/HAIC_part_1/
-curl -I https://iivm6.cit.tum.de/HAIC_part_1/
-curl -I https://iivm6.cit.tum.de/api/health
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml \
+  up --build -d
 ```
 
-Expected:
+## 6. Verify
 
-```text
-HTTP on port 80 -> 301 redirect to HTTPS
-HTTPS on port 443 -> 200 OK
+```bash
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.selfhosted-supabase.yml \
+  -f docker-compose.https.yml \
+  ps
+
+curl -I http://iivm11.cit.tum.de/HAIC_part_1/
+curl -I https://iivm11.cit.tum.de/HAIC_part_1/
+curl https://iivm11.cit.tum.de/api/health
+openssl s_client -connect iivm11.cit.tum.de:443 -servername iivm11.cit.tum.de </dev/null
 ```
 
-Participant URL:
+Expected results:
 
-```text
-https://iivm6.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
-```
+- HTTP returns a `301` redirect to HTTPS.
+- HTTPS Part 1 returns `200`.
+- `/api/health` returns JSON with status `ok` and Supabase storage.
+- The certificate subject or SAN includes `iivm11.cit.tum.de`, and certificate verification succeeds.
+
+The four SONA URLs are listed in `AI_WITHDRAWAL_STUDY.md`.

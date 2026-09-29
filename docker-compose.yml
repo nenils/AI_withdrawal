@@ -2,6 +2,7 @@ name: ai-withdrawal
 
 services:
   study:
+    container_name: ai-withdrawal-study
     build:
       context: .
       dockerfile: Dockerfile

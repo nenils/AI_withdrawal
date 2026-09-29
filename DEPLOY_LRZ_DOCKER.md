@@ -26,9 +26,9 @@ Edit `supabase/.env` before the first start. Replace every value marked as insec
 For the bundled same-domain deployment, set:
 
 ```env
-SITE_URL=https://iivm6.cit.tum.de
-API_EXTERNAL_URL=https://iivm6.cit.tum.de/supabase
-SUPABASE_PUBLIC_URL=https://iivm6.cit.tum.de/supabase
+SITE_URL=https://iivm11.cit.tum.de
+API_EXTERNAL_URL=https://iivm11.cit.tum.de/supabase
+SUPABASE_PUBLIC_URL=https://iivm11.cit.tum.de/supabase
 ```
 
 Start Supabase first so its `supabase_default` Docker network exists:
@@ -56,13 +56,14 @@ Fill in at least:
 
 ```env
 VITE_STORAGE_ENGINE=supabase
-VITE_SUPABASE_URL=https://iivm6.cit.tum.de/supabase
+VITE_SUPABASE_URL=https://iivm11.cit.tum.de/supabase
 VITE_SUPABASE_ANON_KEY=<same anon key as supabase/.env>
 
 SUPABASE_URL=http://kong:8000
 SUPABASE_SERVICE_ROLE_KEY=<same service-role key as supabase/.env>
 
-STUDY_PUBLIC_URL=https://iivm6.cit.tum.de
+STUDY_PUBLIC_URL=https://iivm11.cit.tum.de
+TLS_CERT_DIR=/var/lib/rbg-cert/live
 OPENROUTER_API_KEY=<server-side key>
 
 SONA_PART_1_COMPLETION_URL=<part-1 server-side completion URL>
@@ -79,8 +80,8 @@ Keep all real credentials in `.env.docker` or `supabase/.env`; never add them to
 Install the CIT/ITO certificate and key as documented in `HTTPS_CIT_CERTIFICATE.md`:
 
 ```text
-certs/iivm6.cit.tum.de.fullchain.pem
-certs/iivm6.cit.tum.de.key
+/var/lib/rbg-cert/live/iivm11.cit.tum.de.fullchain.pem
+/var/lib/rbg-cert/live/iivm11.cit.tum.de.privkey.pem
 ```
 
 Certificate files are ignored by Git and mounted read-only into nginx.
@@ -117,10 +118,10 @@ docker compose \
 ## 6. Verify
 
 ```bash
-curl -I http://iivm6.cit.tum.de/
-curl -I https://iivm6.cit.tum.de/HAIC_part_1/
-curl https://iivm6.cit.tum.de/api/health
-curl -I https://iivm6.cit.tum.de/supabase/rest/v1/
+curl -I http://iivm11.cit.tum.de/
+curl -I https://iivm11.cit.tum.de/HAIC_part_1/
+curl https://iivm11.cit.tum.de/api/health
+curl -I https://iivm11.cit.tum.de/supabase/rest/v1/
 ```
 
 HTTP should redirect to HTTPS. The study and API should return successful responses. Supabase may return `401` without an API key, which still confirms that nginx can reach Kong.
@@ -128,10 +129,10 @@ HTTP should redirect to HTTPS. The study and API should return successful respon
 The four SONA Study URLs are:
 
 ```text
-https://iivm6.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
-https://iivm6.cit.tum.de/HAIC_part_2/?sona_id=%SURVEY_CODE%
-https://iivm6.cit.tum.de/HAIC_part_3/?sona_id=%SURVEY_CODE%
-https://iivm6.cit.tum.de/HAIC_part_4/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_2/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_3/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_4/?sona_id=%SURVEY_CODE%
 ```
 
 Test them with a fake SONA participant and invitation code before opening recruitment.

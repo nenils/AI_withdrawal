@@ -19,10 +19,10 @@ Each session has four independent games. Every game uses four positions and six 
 Create one SONA multi-part study with four parts. For Parts 2-4, set **Available After** to `24` hours. A practical default for **Available For** is `72` hours; this remains a study-policy choice. Use these unique Study URLs, replacing the host with the deployed domain:
 
 ```text
-https://iivm6.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
-https://iivm6.cit.tum.de/HAIC_part_2/?sona_id=%SURVEY_CODE%
-https://iivm6.cit.tum.de/HAIC_part_3/?sona_id=%SURVEY_CODE%
-https://iivm6.cit.tum.de/HAIC_part_4/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_1/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_2/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_3/?sona_id=%SURVEY_CODE%
+https://iivm11.cit.tum.de/HAIC_part_4/?sona_id=%SURVEY_CODE%
 ```
 
 Set one timeslot for each part according to the SONA multi-part study instructions. SONA controls availability and sends its standard confirmation, availability, and daily reminder messages. Its built-in reminder cadence does not implement the previously discussed exact `+24h` and `+52h` custom schedule. The application does not send recruitment or scheduling mail; an exact second reminder would require a later approved mail integration.
