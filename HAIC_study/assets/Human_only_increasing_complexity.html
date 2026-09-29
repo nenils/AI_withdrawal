@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Mastermind — Human Only (Increasing Difficulty)</title>
+<script src="/revisitUtilities/revisit-communicate.js"></script>
+<script src="/revisitUtilities/revisit-provenance.js"></script>
+<style>
+  body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f7f9fb; color:#111; padding:18px; }
+  .game { text-align: center; max-width: 760px; margin: 0 auto 18px; }
+  .instructions { background:#eef6ff; border:1px solid #cfe6ff; padding:0; border-radius:8px; margin-bottom:10px; font-size:14px; text-align:left; overflow:hidden; }
+  .instructions summary { cursor:pointer; list-style:none; padding:10px 12px; font-weight:700; color:#0f3b74; background:#dceeff; border-bottom:1px solid #cfe6ff; }
+  .instructions summary::-webkit-details-marker { display:none; }
+  .instructions summary::before { content:"▼"; display:inline-block; width:1.2rem; margin-right:6px; transition:transform 0.15s ease; }
+  .instructions:not([open]) summary::before { transform:rotate(-90deg); }
+  .instructions-body { padding:12px; }
+  .round-banner { display:none; }
+  .board { display:flex; flex-direction:column; align-items:center; margin-top:12px; }
+  .row { display:flex; align-items:center; margin:8px 0; }
+  .peg { width:44px; height:44px; border:2px solid #333; border-radius:50%; margin:6px; background:white; cursor:pointer; transition: background 0.15s; }
+  .row.locked .peg { opacity:0.7; cursor:default; pointer-events:none; }
+  .feedback { display:flex; margin-left:12px; }
+  .feedback div { width:14px; height:14px; border-radius:50%; margin:2px; border:1px solid #222; }
+  .palette { display:flex; justify-content:center; margin-top:12px; gap:10px; flex-wrap:wrap; }
+  .palette div { width:38px; height:38px; border-radius:50%; border:2px solid #333; cursor:pointer; transition: outline 0.15s; }
+  .palette div.selected { outline:3px solid rgba(0,0,0,0.5); }
+  .controls { margin-top:14px; display:flex; gap:10px; justify-content:center; }
+  button { font-weight:600; border-radius:8px; padding:8px 14px; cursor:pointer; }
+  #guessBtn { background:#2563eb; color:white; border:none; font-size:15px; padding:10px 24px; }
+  #guessBtn:hover { background:#1d4ed8; }
+  #guessBtn:disabled { background:#94a3b8; cursor:not-allowed; }
+  .status-msg { margin:10px auto; max-width:760px; padding:10px 14px; border-radius:8px; font-size:14px; text-align:center; }
+  .status-msg.info { background:#fef3c7; color:#92400e; }
+  .status-msg.success { background:#d1fae5; color:#065f46; }
+  .status-msg.error { background:#fee2e2; color:#991b1b; }
+  .completion-code-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:2000; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .completion-code-panel { background:#fff; border-radius:12px; max-width:680px; width:100%; padding:28px; text-align:center; box-shadow:0 24px 80px rgba(0,0,0,0.35); border:4px solid #f59e0b; }
+  .completion-code-panel h2 { margin:0 0 12px; font-size:28px; color:#0f172a; }
+  .completion-code-panel p { margin:10px 0; font-size:18px; color:#334155; }
+  .completion-code-value { margin:18px auto; padding:18px 24px; background:#0f172a; color:#fff; border-radius:10px; font-size:48px; font-weight:800; letter-spacing:2px; font-family:Arial, sans-serif; }
+  .completion-code-panel button { background:#2563eb; color:#fff; border:none; font-size:16px; padding:12px 18px; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="game">
+  <h2>🎯 Mastermind</h2>
+  <div class="round-banner" id="roundBanner">Round 1/5 — 2 Colors Available</div>
+  <details class="instructions" id="instructionsBox" open>
+    <summary>How to play</summary>
+    <div class="instructions-body">
+    0️⃣ The goal of the game is to guess the secret code of colors with the fewest guesses possible.<br>
+    1️⃣ Select a <b>color</b> from the palette below the board.<br>
+    2️⃣ Click a <b>peg</b> in the current row to place it.<br>
+    3️⃣ Fill all 4 pegs, then click <b>"Submit Guess"</b>.<br><br>
+    ⚫ black peg = correct color &amp; position &nbsp; ⚪ white peg = correct color, wrong position.<br>
+    The order of the peg is independent from the order of colors in the code.
+    </div>
+  </details>
+
+  <p><strong>Round:</strong> <span id="roundCounter">1</span>/5 |
+     <strong>Guess No.:</strong> <span id="stepCounter">0</span> / 10 |
+     <strong>Total Guess No.:</strong> <span id="totalAttempts">0</span></p>
+
+  <div class="board" id="board"></div>
+  <div class="palette" id="colorPalette"></div>
+  <div class="controls">
+    <button id="guessBtn" type="button" disabled>Submit Guess</button>
+  </div>
+</div>
+
+<div id="statusArea"></div>
+
+<script>
+var ALL_COLORS = ["Blue","Green","Red","Yellow","Orange","Purple"];
+var FIRST_COLOR_COUNT = 2;
+var TOTAL_ROUNDS = ALL_COLORS.length - FIRST_COLOR_COUNT + 1;
+var CODE_LENGTH = 4;
+var MAX_ATTEMPTS_PER_ROUND = 10;
+var colorCss = function(c) { return c.toLowerCase(); };
+var FIXED_ROUND_CODES = [
+  ["Blue", "Blue", "Green", "Blue"],
+  ["Red", "Blue", "Blue", "Red"],
+  ["Blue", "Yellow", "Blue", "Red"],
+  ["Yellow", "Red", "Red", "Green"],
+  ["Blue", "Orange", "Purple", "Blue"]
+];
+
+var currentRound = 1;
+var availableColors = [];
+var secret = [];
+var currentRow = null;
+var stepCount = 0;
+var totalAttemptCount = 0;
+var selectedColor = null;
+var gameOver = false;
+
+var guessHistory = {};
+var feedbackHistory = {};
+var roundHistory = [];
+
+/* === Mouse & Keyboard Tracking === */
+var mouseTrackingData = [];
+var clickTrackingData = [];
+var keyTrackingData = [];
+var lastMouseTime = 0;
+var MOUSE_TRACKING_INTERVAL = 100;
+
+function trackMouseMovement(event) {
+  var now = Date.now();
+  if (now - lastMouseTime > MOUSE_TRACKING_INTERVAL) {
+    var data = {
+      x: event.clientX,
+      y: event.clientY,
+      timestamp: new Date().toISOString(),
+      timestampMs: now,
+      round: currentRound,
+      attempt: stepCount,
+      target: event.target.tagName,
+      targetId: event.target.id || "",
+      targetClass: event.target.className || ""
+    };
+    mouseTrackingData.push(data);
+    lastMouseTime = now;
+    if (mouseTrackingData.length > 5000) {
+      mouseTrackingData = mouseTrackingData.slice(-5000);
+    }
+  }
+}
+
+function trackClick(event) {
+  var data = {
+    x: event.clientX,
+    y: event.clientY,
+    timestamp: new Date().toISOString(),
+    timestampMs: Date.now(),
+    round: currentRound,
+    attempt: stepCount,
+    button: event.button,
+    target: event.target.tagName,
+    targetId: event.target.id || "",
+    targetClass: event.target.className || ""
+  };
+  clickTrackingData.push(data);
+  if (clickTrackingData.length > 2000) {
+    clickTrackingData = clickTrackingData.slice(-2000);
+  }
+}
+
+function trackKeyboard(event) {
+  var data = {
+    key: event.key,
+    code: event.code,
+    type: event.type,
+    timestamp: new Date().toISOString(),
+    timestampMs: Date.now(),
+    round: currentRound,
+    attempt: stepCount,
+    target: event.target.tagName,
+    targetId: event.target.id || ""
+  };
+  keyTrackingData.push(data);
+  if (keyTrackingData.length > 2000) {
+    keyTrackingData = keyTrackingData.slice(-2000);
+  }
+}
+
+/* === Helpers === */
+function el(tag, opts) {
+  opts = opts || {};
+  var e = document.createElement(tag);
+  if (opts["class"]) e.className = opts["class"];
+  if (opts.text) e.textContent = opts.text;
+  return e;
+}
+
+function logProv(action, trigger, data) {
+  try { if (typeof Revisit !== 'undefined' && Revisit.logProvenance) { Revisit.logProvenance(action, trigger, data); } } catch (e) {}
+}
+
+function showStatus(text, type) {
+  if (type === "info") return;
+  var area = document.getElementById("statusArea");
+  var msg = el("div", { "class": "status-msg " + type, text: text });
+  area.appendChild(msg);
+  while (area.children.length > 5) area.removeChild(area.firstChild);
+}
+
+/* === Round Management === */
+function getAvailableColors(round) {
+  return ALL_COLORS.slice(0, Math.min(FIRST_COLOR_COUNT + round - 1, ALL_COLORS.length));
+}
+
+function getSecretForRound(round) {
+  return FIXED_ROUND_CODES[round - 1].slice();
+}
+
+function updateUI() {
+  document.getElementById("roundCounter").textContent = currentRound;
+  document.getElementById("stepCounter").textContent = stepCount;
+  document.getElementById("totalAttempts").textContent = totalAttemptCount;
+  var names = availableColors.join(", ");
+  document.getElementById("roundBanner").textContent =
+    "Round " + currentRound + "/" + TOTAL_ROUNDS + " — " + availableColors.length + " Color" + (availableColors.length > 1 ? "s" : "") + " Available";
+  var colorListDisplay = document.getElementById("colorListDisplay");
+  if (colorListDisplay) colorListDisplay.innerHTML = "<b>Available colors:</b> " + names;
+}
+
+function renderPalette() {
+  var palette = document.getElementById("colorPalette");
+  palette.innerHTML = "";
+  selectedColor = null;
+  availableColors.forEach(function(c) {
+    var d = el("div");
+    d.style.background = colorCss(c);
+    d.title = c;
+    d.addEventListener("click", function() {
+      selectedColor = c;
+      var children = palette.children;
+      for (var i = 0; i < children.length; i++) children[i].classList.remove("selected");
+      d.classList.add("selected");
+    });
+    palette.appendChild(d);
+  });
+}
+
+function startRound() {
+  document.getElementById("board").innerHTML = "";
+  document.getElementById("statusArea").innerHTML = "";
+  availableColors = getAvailableColors(currentRound);
+  secret = getSecretForRound(currentRound);
+  stepCount = 0;
+  guessHistory = {};
+  feedbackHistory = {};
+  gameOver = false;
+  logProv('roundStarted', 'system', { round: currentRound, availableColors: availableColors, secretCode: secret, timestamp: new Date().toISOString() });
+  updateUI();
+  renderPalette();
+  addRow();
+  updateGuessBtn();
+  showStatus("🔔 Round " + currentRound + "/" + TOTAL_ROUNDS + " started! Colors: " + availableColors.join(", ") + ". Pick colors and fill the pegs!", "info");
+}
+
+function addRow() {
+  var board = document.getElementById("board");
+  currentRow = el("div", { "class": "row" });
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    var peg = el("div", { "class": "peg" });
+    (function(index, pegEl) {
+      pegEl.addEventListener("click", function() {
+        if (gameOver) return;
+        if (selectedColor) {
+          pegEl.style.background = colorCss(selectedColor);
+          pegEl.dataset.color = selectedColor;
+          logProv('pegPlaced', 'click', { position: index, color: selectedColor, round: currentRound, attempt: stepCount + 1, timestamp: new Date().toISOString() });
+          updateGuessBtn();
+        }
+      });
+    })(i, peg);
+    currentRow.appendChild(peg);
+  }
+  var fb = el("div", { "class": "feedback" });
+  currentRow.appendChild(fb);
+  board.appendChild(currentRow);
+}
+
+function updateGuessBtn() {
+  var pegs = currentRow.querySelectorAll(".peg");
+  var allFilled = true;
+  for (var i = 0; i < pegs.length; i++) {
+    if (!pegs[i].dataset.color) { allFilled = false; break; }
+  }
+  document.getElementById("guessBtn").disabled = !allFilled || gameOver;
+}
+
+function getFeedback(guess) {
+  var black = 0, white = 0;
+  var s = secret.slice(), g = guess.slice();
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    if (g[i] === s[i]) { black++; s[i] = g[i] = null; }
+  }
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    if (g[i]) { var idx = s.indexOf(g[i]); if (idx !== -1) { white++; s[idx] = null; } }
+  }
+  return { black: black, white: white };
+}
+
+function showFeedbackOnRow(fb) {
+  var fbEl = currentRow.querySelector(".feedback");
+  fbEl.innerHTML = "";
+  for (var i = 0; i < fb.black; i++) { var d = el("div"); d.style.background = "black"; fbEl.appendChild(d); }
+  for (var i = 0; i < fb.white; i++) { var d = el("div"); d.style.background = "white"; fbEl.appendChild(d); }
+}
+
+function submitGuess() {
+  if (gameOver) return;
+  var pegs = currentRow.querySelectorAll(".peg");
+  var guess = [];
+  for (var i = 0; i < pegs.length; i++) guess.push(pegs[i].dataset.color || null);
+  if (guess.indexOf(null) !== -1) { alert("Fill all 4 pegs before submitting!"); return; }
+
+  stepCount++;
+  totalAttemptCount++;
+  var fb = getFeedback(guess);
+  guessHistory[stepCount] = guess.slice();
+  feedbackHistory[stepCount] = fb;
+  logProv('guessSubmitted', 'click', { round: currentRound, attempt: stepCount, guess: guess, feedback: fb, timestamp: new Date().toISOString() });
+  showFeedbackOnRow(fb);
+  currentRow.classList.add("locked");
+  updateUI();
+
+  if (fb.black === CODE_LENGTH) { handleRoundWin(); return; }
+  if (stepCount >= MAX_ATTEMPTS_PER_ROUND) { handleRoundLoss(); return; }
+  addRow();
+  updateGuessBtn();
+  showStatus("Feedback: ⚫×" + fb.black + "  ⚪×" + fb.white + ". Keep going!", "info");
+}
+
+function handleRoundWin() {
+  gameOver = true;
+  updateGuessBtn();
+  showStatus("🎉 Code cracked in Round " + currentRound + "/" + TOTAL_ROUNDS + " after " + stepCount + " guess(es)!", "success");
+  roundHistory.push({ round: currentRound, colorsAvailable: availableColors.length, attempts: stepCount, won: true, secret: secret.slice(), guessHistory: cloneForStorage(guessHistory), feedbackHistory: cloneForStorage(feedbackHistory) });
+  logProv('roundWon', 'system', { round: currentRound, attempts: stepCount, timestamp: new Date().toISOString() });
+  var wonRound = currentRound;
+
+  if (wonRound >= TOTAL_ROUNDS) {
+    finishGame("🏆 You completed all rounds! The Password is: YOUwin!");
+  } else {
+    currentRound++;
+    showStatus("⬆️ Difficulty increases! Starting Round " + currentRound + "/" + TOTAL_ROUNDS + "...", "info");
+    setTimeout(function() { startRound(); }, 2500);
+  }
+}
+
+function handleRoundLoss() {
+  gameOver = true;
+  updateGuessBtn();
+  showStatus("❌ Round " + currentRound + "/" + TOTAL_ROUNDS + " failed. The code was: " + secret.join(", "), "error");
+  roundHistory.push({ round: currentRound, colorsAvailable: availableColors.length, attempts: stepCount, won: false, secret: secret.slice(), guessHistory: cloneForStorage(guessHistory), feedbackHistory: cloneForStorage(feedbackHistory) });
+  logProv('roundLost', 'system', { round: currentRound, attempts: stepCount, secret: secret, timestamp: new Date().toISOString() });
+  finishGame("Game over! Max guesses reached in Round " + currentRound + "/" + TOTAL_ROUNDS + ". The Password is: YOUgo!");
+}
+
+function getStudyCode(message) {
+  return message.indexOf("YOUwin!") !== -1 ? "YOUwin!" : "YOUgo!";
+}
+
+function getReactiveAnswerId() {
+  var trialId = new URLSearchParams(window.location.search).get("trialid") || "";
+  if (trialId === "mastermind_human_only") return "mastermind_human_only_reactive";
+  return "mastermind_game_reactive";
+}
+
+function cloneForStorage(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function showCompletionCode(message) {
+  var code = getStudyCode(message);
+  var overlay = document.createElement("div");
+  overlay.className = "completion-code-overlay";
+  var panel = document.createElement("div");
+  panel.className = "completion-code-panel";
+  panel.innerHTML =
+    "<h2>Important: Study Code</h2>" +
+    "<p>Please enter this code in the password question in the left pane of the questionnaire.</p>" +
+    "<div class=\"completion-code-value\">" + code + "</div>" +
+    "<p>You need this code to complete the study.</p>";
+  var button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "I have noted the code";
+  button.addEventListener("click", function() { overlay.remove(); });
+  panel.appendChild(button);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  alert("IMPORTANT STUDY CODE: " + code + "\n\nPlease enter this code in the password question in the left pane of the questionnaire.");
+}
+
+function finishGame(message) {
+  /* Remove tracking listeners */
+  document.removeEventListener("mousemove", trackMouseMovement);
+  document.removeEventListener("click", trackClick);
+  document.removeEventListener("keydown", trackKeyboard);
+  document.removeEventListener("keyup", trackKeyboard);
+
+  logProv('gameEnded', 'system', { finalMessage: message, totalAttempts: totalAttemptCount, roundsCompleted: currentRound, roundHistory: roundHistory, timestamp: new Date().toISOString() });
+  showCompletionCode(message);
+  var taskID = "mastermindGame";
+  var answers = {};
+  answers[taskID + "_totalAttempts"] = totalAttemptCount;
+  answers[taskID + "_roundsCompleted"] = currentRound;
+  answers[taskID + "_roundHistory"] = JSON.stringify(roundHistory);
+  answers[taskID + "_guessHistory"] = JSON.stringify(guessHistory);
+  answers[taskID + "_feedbackHistory"] = JSON.stringify(feedbackHistory);
+  answers[taskID + "_mouseTrackingData"] = JSON.stringify(mouseTrackingData);
+  answers[taskID + "_clickTrackingData"] = JSON.stringify(clickTrackingData);
+  answers[taskID + "_keyTrackingData"] = JSON.stringify(keyTrackingData);
+  answers[taskID + "_finalPassword"] = getStudyCode(message);
+  try { if (typeof Revisit !== 'undefined' && Revisit.getProvenance) { answers[taskID + "_provenance"] = Revisit.getProvenance(); } } catch (e) {}
+  var trackingPayload = {
+    totalAttempts: totalAttemptCount,
+    roundsCompleted: currentRound,
+    roundHistory: roundHistory,
+    guessHistory: guessHistory,
+    feedbackHistory: feedbackHistory,
+    mouseTrackingData: mouseTrackingData,
+    clickTrackingData: clickTrackingData,
+    keyTrackingData: keyTrackingData,
+    finalPassword: getStudyCode(message)
+  };
+  answers[getReactiveAnswerId()] = [
+    "Game completed; detailed tracking data saved.",
+    "TRACKING_JSON: " + JSON.stringify(trackingPayload)
+  ];
+  Revisit.postAnswers(answers);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  try { if (typeof Revisit !== 'undefined' && Revisit.initProvenance) { Revisit.initProvenance(); Revisit.logProvenance('pageLoaded', 'system', { userAgent: navigator.userAgent, timestamp: new Date().toISOString() }); } } catch (e) {}
+
+  /* Start tracking */
+  document.addEventListener("mousemove", trackMouseMovement);
+  document.addEventListener("click", trackClick);
+  document.addEventListener("keydown", trackKeyboard);
+  document.addEventListener("keyup", trackKeyboard);
+
+  document.getElementById("guessBtn").addEventListener("click", submitGuess);
+  startRound();
+});
+</script>
+</body>
+</html>

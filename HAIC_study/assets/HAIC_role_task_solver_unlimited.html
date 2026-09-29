@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Mastermind — Chat & Suggestion</title>
+<style>
+  body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f7f9fb; color:#111; padding:18px; }
+  .game { text-align: center; max-width: 760px; margin: 0 auto 18px; }
+  .instructions { background: #eef6ff; border: 1px solid #cfe6ff; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; text-align: left; }
+  .board { display: flex; flex-direction: column; align-items: center; margin-top: 12px; }
+  .row { display: flex; align-items: center; margin: 8px 0; }
+  .row.locked .peg { cursor: default; pointer-events: none; opacity: 0.7; }
+  .peg { width: 44px; height: 44px; border: 2px solid #333; border-radius: 50%; margin: 6px; background: white; cursor: pointer; }
+  .feedback { display: flex; margin-left: 12px; }
+  .feedback div { width: 14px; height: 14px; border-radius: 50%; margin: 2px; border: 1px solid #222; }
+  .palette { display: flex; justify-content: center; margin-top: 12px; gap: 10px; }
+  .palette div { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #333; cursor: pointer; }
+  .controls { margin-top: 14px; }
+  button { font-weight: 600; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  #guessBtn { background: #2563eb; color: white; border: none; }
+  #applySuggestionBtn { background: #10b981; color: white; border: none; margin-left: 10px; }
+  .chat { margin: 20px auto 0 auto; max-width: 760px; height: 420px; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 30px rgba(2,6,23,0.08); background: linear-gradient(#ffffff,#fbfdff); display: flex; flex-direction: column; }
+  .chat-header { background: #0f172a; color: white; padding: 12px; font-weight: 700; text-align: center; }
+  .chat-messages { flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .chat-input { display: flex; border-top: 1px solid #e6eefb; padding: 10px; gap: 8px; align-items: center; }
+  .msg { max-width: 78%; padding: 10px 12px; border-radius: 12px; line-height: 1.3; box-shadow: 0 1px 6px rgba(16,24,40,0.04); }
+  .msg.user { background: #e6f0ff; align-self: flex-end; color: #0b4da0; text-align: right; }
+  .msg.bot { background: #0f172a; color: white; align-self: flex-start; }
+  .bot-text { white-space: pre-wrap; font-size: 14px; color: inherit; }
+  .suggestion-box { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 32px; border-radius: 20px; color: white; font-weight: 700; padding: 0 10px; }
+  .chip.Blue { background: #2563eb; }
+  .chip.Green { background: #10b981; }
+  .chip.Red { background: #ef4444; }
+  .chip.Yellow { background: #f59e0b; }
+  .chip.Orange { background: #f97316; }
+  .chip.Purple { background: #7c3aed; }
+  .inline-apply { background: transparent; border: 1px solid rgba(255,255,255,0.2); padding: 6px 10px; border-radius: 8px; color: white; cursor: pointer; font-weight: 700; }
+</style>
+<script src="/revisitUtilities/revisit-communicate.js"></script>
+<script src="/revisitUtilities/revisit-provenance.js"></script>
+</head>
+<body>
+<div class="game">
+  <h2>🎯 Mastermind</h2>
+  <div class="instructions">
+    1️⃣ Select a color.<br>
+    2️⃣ Click on a position.<br>
+    3️⃣ After placing 4 pegs, click <b>Submit Guess</b>.<br>
+    Available colors: <b>Blue, Green, Red, Yellow, Orange, Purple</b>. <br>
+    The Feedback is as follows: ⚫️ black peg = correct color & correct position; ⚪️ white peg = correct color & wrong position. <br>
+   💬 You can chat with the GameMaster as often as you like!
+  </div>
+  <p><strong>Attempts:</strong> <span id="stepCounter">0</span></p>
+  <div class="board" id="board"></div>
+  <div class="palette" id="palette"></div>
+  <div class="controls">
+    <button id="guessBtn" type="button">Submit Guess</button>
+    <button id="applySuggestionBtn" type="button">Apply suggested guess</button>
+  </div>
+</div>
+<div class="chat">
+  <div class="chat-header">💬 Chat with the GameMaster</div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="Ask the assistant (optional)..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6eefb;">
+    <button id="sendBtn" type="button">Send</button>
+  </div>
+</div>
+<script>
+const COLORS = ["Blue","Green","Red","Yellow","Orange","Purple"];
+const colorCss = c => c.toLowerCase();
+let secret=[], currentRow, stepCount=0, selectedColor=null;
+let guessHistory={}, feedbackHistory={}, latestSuggestedGuess=[];
+let firstTurn=true;
+let chatHistory = [];
+let suggestionHistory = [];
+let mouseTrackingData = [];
+let lastMouseTime = 0;
+const MOUSE_TRACKING_INTERVAL = 100; // Track every 100ms to avoid too much data
+
+function trackMouseMovement(event) {
+  const now = Date.now();
+  // Only record mouse movements at intervals to prevent data overload
+  if (now - lastMouseTime > MOUSE_TRACKING_INTERVAL) {
+    const mouseData = {
+      x: event.clientX,
+      y: event.clientY,
+      timestamp: new Date().toISOString(),
+      timestampMs: now,
+      attempt: stepCount,
+      target: event.target.tagName,
+      targetClass: event.target.className,
+      targetId: event.target.id
+    };
+    
+    mouseTrackingData.push(mouseData);
+    lastMouseTime = now;
+    
+    // Track with provenance system (safely)
+    try {
+      if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+        Revisit.logProvenance('mouseMovement', 'mousemove', mouseData);
+      }
+    } catch(e) { console.log('Provenance tracking not available'); }
+    
+    // Limit stored data to prevent memory issues (keep last 1000 movements)
+    if (mouseTrackingData.length > 1000) {
+      mouseTrackingData = mouseTrackingData.slice(-1000);
+    }
+  }
+}
+
+function el(tag, opts={}) { const e=document.createElement(tag); if(opts.class) e.className=opts.class; if(opts.text) e.textContent=opts.text; if(opts.html) e.innerHTML=opts.html; return e; }
+function startGame(){
+  const board=document.getElementById("board"); board.innerHTML="";
+  secret=Array.from({length:4}, ()=>COLORS[Math.floor(Math.random()*COLORS.length)]);
+  stepCount=0; document.getElementById("stepCounter").textContent=stepCount;
+  guessHistory={}; feedbackHistory={}; latestSuggestedGuess=[]; firstTurn=true;
+  chatHistory = [];
+  suggestionHistory = [];
+  mouseTrackingData = []; // Reset mouse tracking data
+  document.getElementById("guessBtn").disabled=false;
+  document.getElementById("applySuggestionBtn").disabled=false;
+  
+  // Track game start (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+      Revisit.logProvenance('gameStarted', 'system', {
+        secretCode: secret,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+  
+  addRow(); renderPalette();
+}
+function addRow(){
+  const board=document.getElementById("board");
+  currentRow=el("div",{class:"row"});
+  for(let i=0;i<4;i++){
+    const peg=el("div",{class:"peg"});
+    peg.addEventListener("click",()=>{ 
+      if(selectedColor && !currentRow.dataset.locked){ 
+        peg.style.background=colorCss(selectedColor); 
+        peg.dataset.color=selectedColor; 
+        
+        // Track peg placement (safely)
+        try {
+          if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+            Revisit.logProvenance('pegPlaced', 'click', {
+              position: i,
+              color: selectedColor,
+              attempt: stepCount + 1,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch(e) { console.log('Provenance tracking not available'); }
+      } 
+    });
+    currentRow.appendChild(peg);
+  }
+  const fb=el("div",{class:"feedback"}); currentRow.appendChild(fb);
+  board.appendChild(currentRow);
+}
+function renderPalette(){
+  const p=document.getElementById("palette"); p.innerHTML="";
+  COLORS.forEach(c=>{
+    const d=el("div"); d.style.background=colorCss(c); d.title=c;
+    d.addEventListener("click",()=>{ 
+      selectedColor=c; 
+      
+      // Track color selection (safely)
+      try {
+        if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+          Revisit.logProvenance('colorSelected', 'click', {
+            color: c,
+            attempt: stepCount + 1,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch(e) { console.log('Provenance tracking not available'); }
+    });
+    p.appendChild(d);
+  });
+}
+function getFeedback(guess){
+  let black=0, white=0;
+  const s=[...secret], g=[...guess];
+  for(let i=0;i<4;i++){ if(g[i]===s[i]){ black++; s[i]=g[i]=null; } }
+  for(let i=0;i<4;i++){ if(g[i]){ const idx=s.indexOf(g[i]); if(idx!==-1){ white++; s[idx]=null; } } }
+  return {black,white};
+}
+function showFeedback({black,white}){
+  const fb=currentRow.querySelector(".feedback"); fb.innerHTML="";
+  for(let i=0;i<black;i++){ const d=el("div"); d.style.background="black"; fb.appendChild(d); }
+  for(let i=0;i<white;i++){ const d=el("div"); d.style.background="white"; fb.appendChild(d); }
+  currentRow.dataset.locked="true";
+  currentRow.classList.add("locked");
+}
+const chatBox=document.getElementById("chatMessages");
+function addUserMessage(text){
+  const msg=el("div",{class:"msg user",text}); chatBox.appendChild(msg); chatBox.scrollTop=chatBox.scrollHeight;
+}
+function addBotMessage(text,suggestionArr){
+  const wrapper=el("div",{class:"msg bot"});
+  const p=el("div",{class:"bot-text"}); p.textContent=text; wrapper.appendChild(p);
+  if(suggestionArr && suggestionArr.length>=1){
+    const box=el("div",{class:"suggestion-box"});
+    suggestionArr.forEach(c=>{ const chip=el("div",{class:"chip "+c,text:c}); box.appendChild(chip); });
+    const inlineApply=el("button",{class:"inline-apply",text:"Apply suggestion"});
+    inlineApply.type="button";
+    inlineApply.addEventListener("click",()=>{ 
+      applySuggestion(suggestionArr); 
+      
+      // Track suggestion application (safely)
+      try {
+        if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+          Revisit.logProvenance('suggestionApplied', 'click', {
+            suggestion: suggestionArr,
+            attempt: stepCount + 1,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch(e) { console.log('Provenance tracking not available'); }
+    });
+    box.appendChild(inlineApply); wrapper.appendChild(box);
+  }
+  chatBox.appendChild(wrapper); chatBox.scrollTop=chatBox.scrollHeight;
+}
+function applySuggestion(arr){
+  if(!arr || arr.length<4) return;
+  const pegs=currentRow.querySelectorAll(".peg");
+  arr.slice(0,4).forEach((color,i)=>{ pegs[i].style.background=colorCss(color); pegs[i].dataset.color=color; });
+}
+async function submitGuess(){
+  const pegs=currentRow.querySelectorAll(".peg");
+  const guess=Array.from(pegs).map(p=>p.dataset.color||null);
+  if(guess.includes(null)){alert("Fill all 4 pegs!");return;}
+  stepCount++;document.getElementById("stepCounter").textContent=stepCount;
+  const fb=getFeedback(guess);
+  guessHistory[stepCount]=guess.slice();
+  feedbackHistory[stepCount]=fb;
+  
+  // Track guess submission (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+      Revisit.logProvenance('guessSubmitted', 'click', {
+        attempt: stepCount,
+        guess: guess,
+        feedback: fb,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+  
+  showFeedback(fb);
+  if(fb.black===4){
+    const winMsg = "🎉 You have won! The Password is: YOUwin!";
+    finishGame(winMsg); return;
+  }
+  if(stepCount>=10){ finishGame("Game over! Max attempts reached. The Password is: YOUgo!"); return; }
+
+  // 🔑 FIXED: ask model for the next suggestion after each guess
+  await requestSuggestionFromModel(false, "Next suggestion please");
+
+  addRow();
+}
+function finishGame(message) {
+  // Track game end (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+      Revisit.logProvenance('gameEnded', 'system', {
+        finalMessage: message,
+        totalAttempts: stepCount,
+        won: message.includes("YOUwin!"),
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+
+  alert(message);
+
+  const taskID = "mastermindGame";
+  const answers = {
+    [`${taskID}_attempts`]: stepCount,
+    [`${taskID}_secretCode`]: secret.join(", "),
+    [`${taskID}_guessHistory`]: JSON.stringify(guessHistory),
+    [`${taskID}_feedbackHistory`]: JSON.stringify(feedbackHistory),
+    [`${taskID}_chatHistory`]: JSON.stringify(chatHistory),
+    [`${taskID}_suggestionHistory`]: JSON.stringify(suggestionHistory),
+    [`${taskID}_mouseTrackingData`]: JSON.stringify(mouseTrackingData),
+    [`${taskID}_finalPassword`]: message.includes("YOUwin!") ? "YOUwin!" : "YOUgo!"
+  };
+  
+  // Add provenance data if available
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.getProvenance) {
+      answers[`${taskID}_provenance`] = Revisit.getProvenance();
+    }
+  } catch(e) { console.log('Provenance data not available'); }
+  
+  Revisit.postAnswers(answers);
+}
+function endGame(){
+  document.getElementById("guessBtn").disabled=true;
+  document.getElementById("applySuggestionBtn").disabled=true;
+}
+function normalizeColor(tok){ if(!tok) return null; const t=tok.trim().toLowerCase(); const map={blue:"Blue",green:"Green",red:"Red",yellow:"Yellow",orange:"Orange",purple:"Purple"}; return map[t]||null; }
+function parseSuggestionFromText(reply){
+  if(!reply) return null;
+  const labeledRegex=/(?:next\s*guess|suggestion|recommended)[^\[\n]*\[\s*([^\]]+?)\s*\]/ig;
+  let m, matches=[]; while((m=labeledRegex.exec(reply))!==null) matches.push(m[1]);
+  if(matches.length>0){ const last=matches[matches.length-1]; const parts=last.split(/,|;/).map(s=>s.trim()).filter(Boolean); return parts.map(normalizeColor).filter(Boolean).slice(0,4);}
+  const bracketRegex=/\[([^\]]+?)\]/g; let br, brackets=[]; while((br=bracketRegex.exec(reply))!==null) brackets.push(br[1]);
+  if(brackets.length>0){ const last=brackets[brackets.length-1]; const parts=last.split(/,|;/).map(s=>s.trim()).filter(Boolean); return parts.map(normalizeColor).filter(Boolean).slice(0,4);}
+  const found=[]; const low=reply.toLowerCase();
+  COLORS.forEach(c=>{ let idx=-1,start=0; while((idx=low.indexOf(c.toLowerCase(),start))!==-1){ found.push({color:c,idx}); start=idx+1;} });
+  if(found.length>0){ found.sort((a,b)=>a.idx-b.idx); const dedup=[]; for(const f of found){ if(!dedup.includes(f.color)) dedup.push(f.color); if(dedup.length===4) break; } return dedup.slice(0,4);}
+  return null;
+}
+const OPENROUTER_API_KEY= env.OPENROUTER_API_KEY;
+
+async function requestSuggestionFromModel(initial=false,userMsg=""){
+  let systemMessage = "";
+  if(initial){
+    systemMessage = `You are a Mastermind player and coach. Colors: Blue, Green, Red, Yellow, Orange, Purple. Suggest a FIRST guess clearly (e.g. [Red, Blue, Green, Yellow]).`;
+    firstTurn=false; userMsg="Start.";
+  } else {
+    let historyStr=""; 
+    for(let i=1;i<=stepCount;i++){ 
+      const g=guessHistory[i]||[],f=feedbackHistory[i]||{black:0,white:0}; 
+      historyStr+=`Attempt ${i}: Guess = [${g.join(", ")}], Feedback = ${f.black} black, ${f.white} white\n`; 
+    }
+    systemMessage = `You are a Mastermind coach. Use colors Blue, Green, Red, Yellow, Orange, Purple. Suggest next guess based on full history.\nHistory:\n${historyStr}. The colors can be present multiple times in the code, keep that in mind when you give your next best suggestion. Keep the Explanation concise, short to 2-3 sentences and highlight the important parts.`;
+  }
+  
+  // Track AI request (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+      Revisit.logProvenance('aiRequestSent', 'system', {
+        initial: initial,
+        userMessage: userMsg,
+        attempt: stepCount,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+  
+  const payload={ model:"meta-llama/Llama-4-maverick", messages:[{role:"system",content:systemMessage},{role:"user",content:userMsg}] };
+  try{
+    if(!OPENROUTER_API_KEY || OPENROUTER_API_KEY === env.OPENROUTER_API_KEY){
+      const errorMsg = "⚠️ OpenRouter API key not set. Replace OPENROUTER_API_KEY in the script to enable chat.";
+      addBotMessage(errorMsg, null);
+      suggestionHistory.push({ 
+        attempt: stepCount,
+        user: userMsg, 
+        bot: errorMsg, 
+        suggestion: [],
+        timestamp: new Date().toISOString()
+      });
+      chatHistory.push({
+        attempt: stepCount,
+        role: "bot",
+        message: errorMsg,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    const res=await fetch("https://openrouter.ai/api/v1/chat/completions",{ method:"POST", headers:{ "Content-Type":"application/json","Authorization":"Bearer "+OPENROUTER_API_KEY }, body:JSON.stringify(payload) });
+    if(!res.ok){
+      const text = await res.text();
+      const errorMsg = "⚠️ OpenRouter error: " + res.status + " — " + text;
+      addBotMessage(errorMsg, null);
+      suggestionHistory.push({ 
+        attempt: stepCount,
+        user: userMsg, 
+        bot: errorMsg, 
+        suggestion: [],
+        timestamp: new Date().toISOString()
+      });
+      chatHistory.push({
+        attempt: stepCount,
+        role: "bot",
+        message: errorMsg,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+    const data=await res.json();
+    const reply=data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "⚠️ No response";
+    const parsed=parseSuggestionFromText(reply);
+    if(parsed && parsed.length>=4){ 
+      latestSuggestedGuess=parsed.slice(0,4); 
+      addBotMessage(reply,latestSuggestedGuess); 
+      suggestionHistory.push({ 
+        attempt: stepCount,
+        user: userMsg, 
+        bot: reply, 
+        suggestion: parsed,
+        timestamp: new Date().toISOString()
+      }); 
+      document.getElementById("applySuggestionBtn").disabled=false; 
+    }
+    else{ 
+      latestSuggestedGuess=[]; 
+      addBotMessage(reply,null); 
+      suggestionHistory.push({ 
+        attempt: stepCount,
+        user: userMsg, 
+        bot: reply, 
+        suggestion: [],
+        timestamp: new Date().toISOString()
+      }); 
+    }
+    
+    // Store bot response in chat history
+    chatHistory.push({
+      attempt: stepCount,
+      role: "bot",
+      message: reply,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Track AI response received (safely)
+    try {
+      if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+        Revisit.logProvenance('aiResponseReceived', 'system', {
+          responseLength: reply.length,
+          hasSuggestion: parsed && parsed.length >= 4,
+          suggestion: parsed || [],
+          attempt: stepCount,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch(e) { console.log('Provenance tracking not available'); }
+  }catch(err){ 
+    const errorMsg = "⚠️ Error calling model.";
+    addBotMessage(errorMsg,null); 
+    console.error(err);
+    
+    // Store error in both histories
+    suggestionHistory.push({ 
+      attempt: stepCount,
+      user: userMsg, 
+      bot: errorMsg, 
+      suggestion: [],
+      timestamp: new Date().toISOString()
+    });
+    chatHistory.push({
+      attempt: stepCount,
+      role: "bot",
+      message: errorMsg,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Track AI error (safely)
+    try {
+      if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+        Revisit.logProvenance('aiError', 'system', {
+          error: err.message,
+          attempt: stepCount,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch(e) { console.log('Provenance tracking not available'); }
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  // Initialize provenance tracking (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.initProvenance) {
+      Revisit.initProvenance();
+      
+      // Track page load
+      Revisit.logProvenance('pageLoaded', 'system', {
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+
+  // Add mouse movement tracking
+  document.addEventListener('mousemove', trackMouseMovement, { passive: true });
+
+  document.getElementById("guessBtn").addEventListener("click",submitGuess);
+  document.getElementById("applySuggestionBtn").addEventListener("click",()=>{ 
+    if(latestSuggestedGuess.length>=4) {
+      applySuggestion(latestSuggestedGuess);
+      
+      // Track main apply button usage (safely)
+      try {
+        if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+          Revisit.logProvenance('mainApplyButtonUsed', 'click', {
+            suggestion: latestSuggestedGuess,
+            attempt: stepCount + 1,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch(e) { console.log('Provenance tracking not available'); }
+    }
+  });
+  document.getElementById("sendBtn").addEventListener("click", async()=>{
+    const text=document.getElementById("chatInput").value.trim();
+    if(!text) return;
+    addUserMessage(text);
+    
+    // Store user message in chat history
+    chatHistory.push({
+      attempt: stepCount,
+      role: "user",
+      message: text,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Track chat message sent (safely)
+    try {
+      if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+        Revisit.logProvenance('chatMessageSent', 'input', {
+          message: text,
+          messageLength: text.length,
+          attempt: stepCount,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch(e) { console.log('Provenance tracking not available'); }
+
+    document.getElementById("chatInput").value="";
+    await requestSuggestionFromModel(false,text);
+  });
+  document.getElementById("chatInput").addEventListener("keydown",(ev)=>{ 
+    if(ev.key==="Enter"){ ev.preventDefault(); document.getElementById("sendBtn").click(); }
+    
+    // Track typing in chat input (safely)
+    if(ev.key.length === 1 || ev.key === 'Backspace' || ev.key === 'Delete') {
+      try {
+        if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+          Revisit.logProvenance('chatTyping', 'keydown', {
+            key: ev.key,
+            inputLength: ev.target.value.length,
+            attempt: stepCount,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch(e) { console.log('Provenance tracking not available'); }
+    }
+  });
+
+  startGame();
+  // 🔑 FIXED: Request initial suggestion when game starts
+  requestSuggestionFromModel(true);
+});
+</script>
+</body>
+</html>

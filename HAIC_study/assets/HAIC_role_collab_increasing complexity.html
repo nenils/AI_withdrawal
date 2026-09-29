@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Mastermind — AI System (Increasing Difficulty)</title>
+<script src="/revisitUtilities/revisit-communicate.js"></script>
+<script src="/revisitUtilities/revisit-provenance.js"></script>
+<style>
+  body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f7f9fb; color:#111; padding:18px; }
+  .game { text-align: center; max-width: 760px; margin: 0 auto 18px; }
+  .instructions { background:#eef6ff; border:1px solid #cfe6ff; padding:0; border-radius:8px; margin-bottom:10px; font-size:14px; text-align:left; overflow:hidden; }
+  .instructions summary { cursor:pointer; list-style:none; padding:10px 12px; font-weight:700; color:#0f3b74; background:#dceeff; border-bottom:1px solid #cfe6ff; }
+  .instructions summary::-webkit-details-marker { display:none; }
+  .instructions summary::before { content:"▼"; display:inline-block; width:1.2rem; margin-right:6px; transition:transform 0.15s ease; }
+  .instructions:not([open]) summary::before { transform:rotate(-90deg); }
+  .instructions-body { padding:12px; }
+  .round-banner { display:none; }
+  .board { display:flex; flex-direction:column; align-items:center; margin-top:12px; }
+  .row { display:flex; align-items:center; margin:8px 0; }
+  .peg { width:44px; height:44px; border:2px solid #333; border-radius:50%; margin:6px; background:white; cursor:pointer; transition: background 0.15s; }
+  .row.locked .peg { opacity:0.7; cursor:default; pointer-events:none; }
+  .feedback { display:flex; margin-left:12px; }
+  .feedback div { width:14px; height:14px; border-radius:50%; margin:2px; border:1px solid #222; }
+  .palette { display:flex; justify-content:center; margin-top:12px; gap:10px; flex-wrap:wrap; }
+  .palette div { width:38px; height:38px; border-radius:50%; border:2px solid #333; cursor:pointer; transition: outline 0.15s; }
+  .palette div.selected { outline:3px solid rgba(0,0,0,0.5); }
+  .controls { margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  button { font-weight:600; border-radius:8px; padding:8px 14px; cursor:pointer; }
+  #guessBtn { background:#2563eb; color:white; border:none; font-size:15px; padding:10px 20px; }
+  #guessBtn:hover { background:#1d4ed8; }
+  #guessBtn:disabled { background:#94a3b8; cursor:not-allowed; }
+  #sendToJudgeBtn { background:#059669; color:white; border:none; font-size:15px; padding:10px 20px; }
+  #sendToJudgeBtn:hover { background:#047857; }
+  #sendToJudgeBtn:disabled { background:#94a3b8; cursor:not-allowed; }
+  #sendToJudgeBtn.loading { background:#64748b; cursor:wait; min-width:160px; }
+
+  .chat { margin:20px auto 0 auto; max-width:760px; height:380px;
+          border-radius:10px; overflow:hidden;
+          box-shadow:0 6px 30px rgba(2,6,23,0.08);
+          background:linear-gradient(#ffffff,#fbfdff);
+          display:flex; flex-direction:column; }
+  .chat-header { background:#0f172a; color:white; padding:12px; font-weight:700; text-align:center; }
+  .chat-messages { flex:1; padding:14px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+  .chat-input { display:flex; border-top:1px solid #e6eefb; padding:10px; gap:8px; align-items:center; }
+  .msg { max-width:78%; padding:10px 12px; border-radius:12px; line-height:1.3;
+         box-shadow:0 1px 6px rgba(16,24,40,0.04); }
+  .msg.user { background:#e6f0ff; align-self:flex-end; color:#0b4da0; text-align:right; }
+  .msg.bot  { background:#0f172a; color:white; align-self:flex-start; }
+  .bot-text { white-space:pre-wrap; font-size:14px; }
+  .completion-code-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:2000; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .completion-code-panel { background:#fff; border-radius:12px; max-width:680px; width:100%; padding:28px; text-align:center; box-shadow:0 24px 80px rgba(0,0,0,0.35); border:4px solid #f59e0b; }
+  .completion-code-panel h2 { margin:0 0 12px; font-size:28px; color:#0f172a; }
+  .completion-code-panel p { margin:10px 0; font-size:18px; color:#334155; }
+  .completion-code-value { margin:18px auto; padding:18px 24px; background:#0f172a; color:#fff; border-radius:10px; font-size:48px; font-weight:800; letter-spacing:2px; font-family:Arial, sans-serif; }
+  .completion-code-panel button { background:#2563eb; color:#fff; border:none; font-size:16px; padding:12px 18px; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="game">
+  <h2>🎯 Mastermind</h2>
+  <div class="round-banner" id="roundBanner">Round 1/5 — 2 Colors Available</div>
+  <details class="instructions" id="instructionsBox" open>
+    <summary>How it works</summary>
+    <div class="instructions-body">
+    0️⃣ The goal of the game is to guess the secret code of colors with the fewest guesses possible.<br>
+    1️⃣ Select a <b>color</b> from the palette and click <b>pegs</b> to build your guess.<br>
+    2️⃣ You have two choices:<br>
+    &nbsp;&nbsp;&nbsp;• <b>"Submit Directly"</b> — submit your guess as-is to the game.<br>
+    &nbsp;&nbsp;&nbsp;• <b>"Send to AI"</b> — the AI reviews your guess and gives feedback.<br>
+    3️⃣ Use the AI review as advice, then decide and submit your own guess manually.<br><br>
+    ⚫ black peg = correct color &amp; position &nbsp; ⚪ white peg = correct color, wrong position.<br>
+    The order of the peg is independent from the order of colors in the code.
+    </div>
+  </details>
+
+  <p><strong>Round:</strong> <span id="roundCounter">1</span>/5 |
+     <strong>Guess No.:</strong> <span id="stepCounter">0</span> / 10 |
+     <strong>Total Guess No.:</strong> <span id="totalAttempts">0</span></p>
+
+  <div class="board" id="board"></div>
+  <div class="palette" id="colorPalette"></div>
+  <div class="controls">
+    <button id="guessBtn" type="button" disabled>✅ Submit Directly</button>
+    <button id="sendToJudgeBtn" type="button" disabled>⚖️ Send to AI</button>
+  </div>
+</div>
+
+<div class="chat">
+  <div class="chat-header">⚖️ AI Chat — Discuss strategy</div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="Discuss your reasoning with the AI..."
+           style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6eefb;">
+    <button id="sendBtn" type="button">Send</button>
+  </div>
+</div>
+
+<script>
+var ALL_COLORS = ["Blue","Green","Red","Yellow","Orange","Purple"];
+var FIRST_COLOR_COUNT = 2;
+var TOTAL_ROUNDS = ALL_COLORS.length - FIRST_COLOR_COUNT + 1;
+var CODE_LENGTH = 4;
+var MAX_ATTEMPTS_PER_ROUND = 10;
+var MAX_API_MESSAGES_PER_ROUND = 20;
+var colorCss = function(c) { return c.toLowerCase(); };
+var FIXED_ROUND_CODES = [
+  ["Blue", "Blue", "Green", "Blue"],
+  ["Red", "Blue", "Blue", "Red"],
+  ["Blue", "Yellow", "Blue", "Red"],
+  ["Yellow", "Red", "Red", "Green"],
+  ["Blue", "Orange", "Purple", "Blue"]
+];
+
+var currentRound = 1;
+var availableColors = [];
+var secret = [];
+var currentRow = null;
+var stepCount = 0;
+var totalAttemptCount = 0;
+var selectedColor = null;
+var gameOver = false;
+var judgeThinking = false;
+var conversationMessages = [];
+var apiMessagesThisRound = 0;
+
+var guessHistory = {};
+var feedbackHistory = {};
+var chatHistory = [];
+var suggestionHistory = [];
+var roundHistory = [];
+
+var LLM_PROXY_ENDPOINT = "/api/llm/chat";
+var RL_MODEL_ENDPOINT = "/api/rl/predict";
+
+/* === Mouse & Keyboard Tracking === */
+var mouseTrackingData = [];
+var clickTrackingData = [];
+var keyTrackingData = [];
+var lastMouseTime = 0;
+var MOUSE_TRACKING_INTERVAL = 100;
+
+function trackMouseMovement(event) {
+  var now = Date.now();
+  if (now - lastMouseTime > MOUSE_TRACKING_INTERVAL) {
+    var data = {
+      x: event.clientX,
+      y: event.clientY,
+      timestamp: new Date().toISOString(),
+      timestampMs: now,
+      round: currentRound,
+      attempt: stepCount,
+      target: event.target.tagName,
+      targetId: event.target.id || "",
+      targetClass: event.target.className || ""
+    };
+    mouseTrackingData.push(data);
+    lastMouseTime = now;
+    if (mouseTrackingData.length > 5000) {
+      mouseTrackingData = mouseTrackingData.slice(-5000);
+    }
+  }
+}
+
+function trackClick(event) {
+  var data = {
+    x: event.clientX,
+    y: event.clientY,
+    timestamp: new Date().toISOString(),
+    timestampMs: Date.now(),
+    round: currentRound,
+    attempt: stepCount,
+    button: event.button,
+    target: event.target.tagName,
+    targetId: event.target.id || "",
+    targetClass: event.target.className || ""
+  };
+  clickTrackingData.push(data);
+  if (clickTrackingData.length > 2000) {
+    clickTrackingData = clickTrackingData.slice(-2000);
+  }
+}
+
+function trackKeyboard(event) {
+  var data = {
+    key: event.key,
+    code: event.code,
+    type: event.type,
+    timestamp: new Date().toISOString(),
+    timestampMs: Date.now(),
+    round: currentRound,
+    attempt: stepCount,
+    target: event.target.tagName,
+    targetId: event.target.id || ""
+  };
+  keyTrackingData.push(data);
+  if (keyTrackingData.length > 2000) {
+    keyTrackingData = keyTrackingData.slice(-2000);
+  }
+}
+
+/* === Helpers === */
+function el(tag, opts) {
+  opts = opts || {};
+  var e = document.createElement(tag);
+  if (opts["class"]) e.className = opts["class"];
+  if (opts.text) e.textContent = opts.text;
+  return e;
+}
+
+function logProv(action, trigger, data) {
+  try { if (typeof Revisit !== 'undefined' && Revisit.logProvenance) { Revisit.logProvenance(action, trigger, data); } } catch (e) {}
+}
+
+function addMsg(text, cls) {
+  if (cls === "system") return;
+  var chatBox = document.getElementById("chatMessages");
+  var m = el("div", { "class": "msg " + cls });
+  var span = document.createElement("span");
+  span.className = "bot-text";
+  span.textContent = text;
+  m.appendChild(span);
+  chatBox.appendChild(m);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function apiLimitMessage() {
+  return "The AI message limit for this round has been reached. Please continue with the game board; the AI chat will be available again in the next round.";
+}
+
+function canSendApiMessage() {
+  return apiMessagesThisRound < MAX_API_MESSAGES_PER_ROUND;
+}
+
+function registerApiMessage() {
+  apiMessagesThisRound++;
+  logProv('apiMessageSent', 'system', {
+    round: currentRound,
+    attempt: stepCount,
+    countThisRound: apiMessagesThisRound,
+    limitPerRound: MAX_API_MESSAGES_PER_ROUND,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function getParticipantApiId() {
+  var params = new URLSearchParams(window.location.search);
+  return params.get("PROLIFIC_PID") || params.get("participantId") || params.get("id") || "anonymous";
+}
+
+function clearVisibleChat() {
+  var chatBox = document.getElementById("chatMessages");
+  if (chatBox) chatBox.innerHTML = "";
+}
+
+/* === Round Management === */
+function getAvailableColors(round) {
+  return ALL_COLORS.slice(0, Math.min(FIRST_COLOR_COUNT + round - 1, ALL_COLORS.length));
+}
+
+function getSecretForRound(round) {
+  return FIXED_ROUND_CODES[round - 1].slice();
+}
+
+function updateUI() {
+  document.getElementById("roundCounter").textContent = currentRound;
+  document.getElementById("stepCounter").textContent = stepCount;
+  document.getElementById("totalAttempts").textContent = totalAttemptCount;
+  var names = availableColors.join(", ");
+  document.getElementById("roundBanner").textContent =
+    "Round " + currentRound + "/" + TOTAL_ROUNDS + " — " + availableColors.length + " Color" + (availableColors.length > 1 ? "s" : "") + " Available";
+  var colorListDisplay = document.getElementById("colorListDisplay");
+  if (colorListDisplay) colorListDisplay.innerHTML = "<b>Available colors:</b> " + names;
+}
+
+function renderPalette() {
+  var palette = document.getElementById("colorPalette");
+  palette.innerHTML = "";
+  selectedColor = null;
+  availableColors.forEach(function(c) {
+    var d = el("div");
+    d.style.background = colorCss(c);
+    d.title = c;
+    d.addEventListener("click", function() {
+      selectedColor = c;
+      var children = palette.children;
+      for (var i = 0; i < children.length; i++) children[i].classList.remove("selected");
+      d.classList.add("selected");
+    });
+    palette.appendChild(d);
+  });
+}
+
+/* === Game Logic === */
+function startRound() {
+  document.getElementById("board").innerHTML = "";
+  clearVisibleChat();
+  availableColors = getAvailableColors(currentRound);
+  secret = getSecretForRound(currentRound);
+  stepCount = 0;
+  guessHistory = {};
+  feedbackHistory = {};
+  gameOver = false;
+  conversationMessages = [];
+  apiMessagesThisRound = 0;
+
+  logProv('roundStarted', 'system', { round: currentRound, availableColors: availableColors, secretCode: secret, timestamp: new Date().toISOString() });
+  updateUI();
+  renderPalette();
+  addRow();
+  updateButtons();
+
+  addMsg("🔔 Round " + currentRound + "/" + TOTAL_ROUNDS + " started! Colors: " + availableColors.join(", ") + ". Build your guess on the board, then Submit Directly or Send to AI!", "system");
+}
+
+function addRow() {
+  var board = document.getElementById("board");
+  currentRow = el("div", { "class": "row" });
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    var peg = el("div", { "class": "peg" });
+    (function(index, pegEl) {
+      pegEl.addEventListener("click", function() {
+        if (gameOver) return;
+        if (selectedColor) {
+          pegEl.style.background = colorCss(selectedColor);
+          pegEl.dataset.color = selectedColor;
+          logProv('pegPlaced', 'click', { position: index, color: selectedColor, round: currentRound, attempt: stepCount + 1, timestamp: new Date().toISOString() });
+          updateButtons();
+        }
+      });
+    })(i, peg);
+    currentRow.appendChild(peg);
+  }
+  var fb = el("div", { "class": "feedback" });
+  currentRow.appendChild(fb);
+  board.appendChild(currentRow);
+}
+
+function updateButtons() {
+  var pegs = currentRow.querySelectorAll(".peg");
+  var allFilled = true;
+  for (var i = 0; i < pegs.length; i++) {
+    if (!pegs[i].dataset.color) { allFilled = false; break; }
+  }
+  document.getElementById("guessBtn").disabled = !allFilled || gameOver;
+  document.getElementById("sendToJudgeBtn").disabled = !allFilled || gameOver || judgeThinking;
+}
+
+function setJudgeThinking(isThinking) {
+  judgeThinking = isThinking;
+  var btn = document.getElementById("sendToJudgeBtn");
+  if (!btn) return;
+  if (judgeThinking) {
+    btn.classList.add("loading");
+    btn.disabled = true;
+    btn.textContent = "⏳ AI is thinking...";
+  } else {
+    btn.classList.remove("loading");
+    btn.textContent = "⚖️ Send to AI";
+    updateButtons();
+  }
+}
+
+function getCurrentGuessFromBoard() {
+  var pegs = currentRow.querySelectorAll(".peg");
+  var guess = [];
+  for (var i = 0; i < pegs.length; i++) {
+    guess.push(pegs[i].dataset.color || null);
+  }
+  return guess;
+}
+
+function getFeedback(guess) {
+  var black = 0, white = 0;
+  var s = secret.slice(), g = guess.slice();
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    if (g[i] === s[i]) { black++; s[i] = g[i] = null; }
+  }
+  for (var i = 0; i < CODE_LENGTH; i++) {
+    if (g[i]) { var idx = s.indexOf(g[i]); if (idx !== -1) { white++; s[idx] = null; } }
+  }
+  return { black: black, white: white };
+}
+
+function showFeedbackOnRow(fb) {
+  var fbEl = currentRow.querySelector(".feedback");
+  fbEl.innerHTML = "";
+  for (var i = 0; i < fb.black; i++) { var d = el("div"); d.style.background = "black"; fbEl.appendChild(d); }
+  for (var i = 0; i < fb.white; i++) { var d = el("div"); d.style.background = "white"; fbEl.appendChild(d); }
+}
+
+function submitGuess(source) {
+  if (gameOver) return;
+  var guess = getCurrentGuessFromBoard();
+  if (guess.indexOf(null) !== -1) { alert("Fill all 4 pegs before submitting!"); return; }
+
+  stepCount++;
+  totalAttemptCount++;
+  var fb = getFeedback(guess);
+  guessHistory[stepCount] = guess.slice();
+  feedbackHistory[stepCount] = fb;
+
+  logProv('guessSubmitted', 'click', { round: currentRound, attempt: stepCount, guess: guess, feedback: fb, submittedVia: source || "direct", timestamp: new Date().toISOString() });
+  showFeedbackOnRow(fb);
+  currentRow.classList.add("locked");
+  updateUI();
+
+  var fbMsg = "[GAME FEEDBACK] Guess No. " + stepCount + ": Guess=[" + guess.join(", ") + "] → " + fb.black + " black, " + fb.white + " white.";
+  conversationMessages.push({ role: "user", content: fbMsg });
+
+  if (fb.black === CODE_LENGTH) { handleRoundWin(); return; }
+  if (stepCount >= MAX_ATTEMPTS_PER_ROUND) { handleRoundLoss(); return; }
+
+  addRow();
+  updateButtons();
+  addMsg("Feedback: ⚫×" + fb.black + "  ⚪×" + fb.white + ". Build your next guess!", "system");
+}
+
+/* === Win / Loss / Finish === */
+function handleRoundWin() {
+  gameOver = true;
+  updateButtons();
+  addMsg("🎉 Code cracked in Round " + currentRound + "/" + TOTAL_ROUNDS + " after " + stepCount + " guess(es)!", "system");
+  roundHistory.push({ round: currentRound, colorsAvailable: availableColors.length, attempts: stepCount, won: true, secret: secret.slice(), guessHistory: cloneForStorage(guessHistory), feedbackHistory: cloneForStorage(feedbackHistory) });
+  logProv('roundWon', 'system', { round: currentRound, attempts: stepCount, timestamp: new Date().toISOString() });
+  var wonRound = currentRound;
+
+  if (wonRound >= TOTAL_ROUNDS) {
+    finishGame("🏆 You completed all rounds! The Password is: YOUwin!");
+  } else {
+    currentRound++;
+    addMsg("⬆️ Difficulty increases! Starting Round " + currentRound + "/" + TOTAL_ROUNDS + "...", "system");
+    setTimeout(function() { startRound(); }, 2500);
+  }
+}
+
+function handleRoundLoss() {
+  gameOver = true;
+  updateButtons();
+  addMsg("❌ Round " + currentRound + "/" + TOTAL_ROUNDS + " failed. The code was: " + secret.join(", "), "system");
+  roundHistory.push({ round: currentRound, colorsAvailable: availableColors.length, attempts: stepCount, won: false, secret: secret.slice(), guessHistory: cloneForStorage(guessHistory), feedbackHistory: cloneForStorage(feedbackHistory) });
+  logProv('roundLost', 'system', { round: currentRound, attempts: stepCount, secret: secret, timestamp: new Date().toISOString() });
+  finishGame("Game over! Max guesses reached in Round " + currentRound + "/" + TOTAL_ROUNDS + ". The Password is: YOUgo!");
+}
+
+function getStudyCode(message) {
+  return message.indexOf("YOUwin!") !== -1 ? "YOUwin!" : "YOUgo!";
+}
+
+function getReactiveAnswerId() {
+  var trialId = new URLSearchParams(window.location.search).get("trialid") || "";
+  if (trialId === "mastermind_judge") return "mastermind_judge_reactive";
+  return "mastermind_game_reactive";
+}
+
+function cloneForStorage(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function showCompletionCode(message) {
+  var code = getStudyCode(message);
+  var overlay = document.createElement("div");
+  overlay.className = "completion-code-overlay";
+  var panel = document.createElement("div");
+  panel.className = "completion-code-panel";
+  panel.innerHTML =
+    "<h2>Important: Study Code</h2>" +
+    "<p>Please enter this code in the password question in the left pane of the questionnaire.</p>" +
+    "<div class=\"completion-code-value\">" + code + "</div>" +
+    "<p>You need this code to complete the study.</p>";
+  var button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "I have noted the code";
+  button.addEventListener("click", function() { overlay.remove(); });
+  panel.appendChild(button);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  alert("IMPORTANT STUDY CODE: " + code + "\n\nPlease enter this code in the password question in the left pane of the questionnaire.");
+}
+
+function finishGame(message) {
+  document.removeEventListener("mousemove", trackMouseMovement);
+  document.removeEventListener("click", trackClick);
+  document.removeEventListener("keydown", trackKeyboard);
+  document.removeEventListener("keyup", trackKeyboard);
+
+  logProv('gameEnded', 'system', { finalMessage: message, totalAttempts: totalAttemptCount, roundsCompleted: currentRound, roundHistory: roundHistory, timestamp: new Date().toISOString() });
+  showCompletionCode(message);
+  var taskID = "mastermindGame";
+  var answers = {};
+  answers[taskID + "_totalAttempts"] = totalAttemptCount;
+  answers[taskID + "_roundsCompleted"] = currentRound;
+  answers[taskID + "_roundHistory"] = JSON.stringify(roundHistory);
+  answers[taskID + "_guessHistory"] = JSON.stringify(guessHistory);
+  answers[taskID + "_feedbackHistory"] = JSON.stringify(feedbackHistory);
+  answers[taskID + "_chatHistory"] = JSON.stringify(chatHistory);
+  answers[taskID + "_suggestionHistory"] = JSON.stringify(suggestionHistory);
+  answers[taskID + "_mouseTrackingData"] = JSON.stringify(mouseTrackingData);
+  answers[taskID + "_clickTrackingData"] = JSON.stringify(clickTrackingData);
+  answers[taskID + "_keyTrackingData"] = JSON.stringify(keyTrackingData);
+  answers[taskID + "_finalPassword"] = getStudyCode(message);
+  try { if (typeof Revisit !== 'undefined' && Revisit.getProvenance) { answers[taskID + "_provenance"] = Revisit.getProvenance(); } } catch (e) {}
+  var trackingPayload = {
+    totalAttempts: totalAttemptCount,
+    roundsCompleted: currentRound,
+    roundHistory: roundHistory,
+    guessHistory: guessHistory,
+    feedbackHistory: feedbackHistory,
+    mouseTrackingData: mouseTrackingData,
+    clickTrackingData: clickTrackingData,
+    keyTrackingData: keyTrackingData,
+    finalPassword: getStudyCode(message)
+  };
+  answers[getReactiveAnswerId()] = [
+    "Game completed; detailed tracking data saved.",
+    "TRACKING_JSON: " + JSON.stringify(trackingPayload)
+  ];
+  Revisit.postAnswers(answers);
+}
+
+/* === AI review via OpenRouter === */
+function getRlStatePayload(reason) {
+  return {
+    game: "mastermind",
+    reason: reason || "ai feedback request",
+    round: currentRound,
+    codeLength: CODE_LENGTH,
+    availableColors: availableColors.slice(),
+    maxAttemptsPerRound: MAX_ATTEMPTS_PER_ROUND,
+    attempt: stepCount + 1,
+    guessHistory: guessHistory,
+    feedbackHistory: feedbackHistory
+  };
+}
+
+function requestRLSuggestion(reason, callback) {
+  if (!RL_MODEL_ENDPOINT) {
+    callback(null);
+    return;
+  }
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", RL_MODEL_ENDPOINT, true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status < 200 || xhr.status >= 300) {
+      logProv('rlFeedbackUnavailable', 'system', { status: xhr.status, response: xhr.responseText, round: currentRound, attempt: stepCount + 1, timestamp: new Date().toISOString() });
+      callback(null);
+      return;
+    }
+    try {
+      var data = JSON.parse(xhr.responseText);
+      var guess = data.guess || data.suggestion || data.next_guess || data.action;
+      if (typeof guess === "string") guess = guess.split(",");
+      if (!Array.isArray(guess)) {
+        callback(null);
+        return;
+      }
+      guess = guess.map(function(c) {
+        c = String(c).trim();
+        for (var i = 0; i < availableColors.length; i++) {
+          if (availableColors[i].toLowerCase() === c.toLowerCase()) return availableColors[i];
+        }
+        return null;
+      });
+      if (guess.length !== CODE_LENGTH || guess.indexOf(null) !== -1) {
+        callback(null);
+        return;
+      }
+      logProv('rlFeedbackReceived', 'system', { round: currentRound, attempt: stepCount + 1, rlDiagnosticGuess: guess, model: data.model || null, timestamp: new Date().toISOString() });
+      callback({ guess: guess, raw: data });
+    } catch (err) {
+      logProv('rlFeedbackParseError', 'system', { error: err.message, round: currentRound, attempt: stepCount + 1, timestamp: new Date().toISOString() });
+      callback(null);
+    }
+  };
+  xhr.send(JSON.stringify(getRlStatePayload(reason)));
+}
+
+function buildJudgeSystemPrompt(humanGuess, rlSuggestion) {
+  var historyStr = "";
+  for (var i = 1; i <= stepCount; i++) {
+    var g = guessHistory[i] || [];
+    var f = feedbackHistory[i] || { black: 0, white: 0 };
+    historyStr += "  Guess No. " + i + ": Guess=[" + g.join(", ") + "] → " + f.black + " black, " + f.white + " white\n";
+  }
+
+  return (
+    "You are an AI partner in a human-AI decision system for the game Mastermind.\n\n" +
+
+    "YOUR ROLE:\n" +
+    "- Review the Human's proposed guess and give feedback. Do not force adaptions only if they are reasonable.\n" +
+
+    "CONSTRAINTS:\n" +
+    "- Current round: " + currentRound + " / " + TOTAL_ROUNDS + "\n" +
+    "- Only use currently available colors: " + availableColors.join(", ") + "\n" +
+    "- The code has " + CODE_LENGTH + " positions. Colors can repeat.\n" +
+     "- Interpret feedback correctly: a black peg means correct color in the correct position; a white peg means correct color in the wrong position.\n" +
+    "- The order of the feedback pegs is independent from the order of colors in the code.\n" +
+
+    "OUTPUT RULES:\n" +
+    "- Respond in 1 short sentence.\n\n" +
+
+    "CURRENT STATE:\n" +
+    "- Round: " + currentRound + " / " + TOTAL_ROUNDS + "\n" +
+    "- Available colors: " + availableColors.join(", ") + "\n" +
+    "- Guess No.: " + stepCount + " / " + MAX_ATTEMPTS_PER_ROUND + "\n" +
+    (historyStr ? "- History:\n" + historyStr : "- No guesses yet this round.\n") +
+    (humanGuess ? "\n- Human's current proposal: [" + humanGuess.join(", ") + "]" : "") +
+    (rlSuggestion ? "\n- Model guess, for your feedback calibration only: [" + rlSuggestion.guess.join(", ") + "]" : "")
+  );
+}
+
+
+function sendToJudge(userMsg, humanGuess) {
+  if (!canSendApiMessage()) {
+    addMsg(apiLimitMessage(), "bot");
+    setJudgeThinking(false);
+    logProv('apiMessageBlocked', 'system', { round: currentRound, attempt: stepCount, limitPerRound: MAX_API_MESSAGES_PER_ROUND, timestamp: new Date().toISOString() });
+    return;
+  }
+
+  if (humanGuess) {
+    requestRLSuggestion("feedback on human proposal", function(rlSuggestion) {
+      sendToJudgeWithFeedback(userMsg, humanGuess, rlSuggestion);
+    });
+  } else {
+    sendToJudgeWithFeedback(userMsg, humanGuess, null);
+  }
+}
+
+function sendToJudgeWithFeedback(userMsg, humanGuess, rlSuggestion) {
+  var sysPrompt = buildJudgeSystemPrompt(humanGuess, rlSuggestion);
+
+  if (humanGuess) {
+    conversationMessages.push({ role: "user", content: "My proposed guess is: [" + humanGuess.join(", ") + "]. Please review it and give feedback only. Do not provide a full replacement guess." });
+  } else {
+    conversationMessages.push({ role: "user", content: userMsg });
+  }
+
+  var payload = {
+    participantId: getParticipantApiId(),
+    studyRound: currentRound,
+    model: "anthropic/claude-sonnet-4",
+    messages: [{ role: "system", content: sysPrompt }].concat(conversationMessages)
+  };
+
+  suggestionHistory.push({
+    round: currentRound, attempt: stepCount,
+    humanProposal: humanGuess ? humanGuess.slice() : userMsg,
+    rlDiagnosticGuess: rlSuggestion ? rlSuggestion.guess.slice() : null,
+    timestamp: new Date().toISOString()
+  });
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", LLM_PROXY_ENDPOINT, true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  registerApiMessage();
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status !== 200) {
+      addMsg(xhr.status === 429 ? apiLimitMessage() : "⚠️ LLM proxy error " + xhr.status + ": " + xhr.responseText, "bot");
+      setJudgeThinking(false);
+      return;
+    }
+    try {
+      var d = JSON.parse(xhr.responseText);
+      var reply = (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || "⚠️ No response.";
+      addMsg(reply, "bot");
+      conversationMessages.push({ role: "assistant", content: reply });
+      setJudgeThinking(false);
+
+      chatHistory.push({ round: currentRound, attempt: stepCount, role: "ai", message: reply, timestamp: new Date().toISOString() });
+      logProv('judgeResponseReceived', 'system', { round: currentRound, attempt: stepCount, responseLength: reply.length, timestamp: new Date().toISOString() });
+    } catch (err) {
+      addMsg("⚠️ Error parsing response: " + err.message, "bot");
+      setJudgeThinking(false);
+    }
+  };
+  xhr.send(JSON.stringify(payload));
+}
+
+/* === Event Bindings === */
+document.addEventListener("DOMContentLoaded", function() {
+  try { if (typeof Revisit !== 'undefined' && Revisit.initProvenance) { Revisit.initProvenance(); Revisit.logProvenance('pageLoaded', 'system', { userAgent: navigator.userAgent, timestamp: new Date().toISOString() }); } } catch (e) {}
+
+  /* Start tracking */
+  document.addEventListener("mousemove", trackMouseMovement);
+  document.addEventListener("click", trackClick);
+  document.addEventListener("keydown", trackKeyboard);
+  document.addEventListener("keyup", trackKeyboard);
+
+  document.getElementById("guessBtn").addEventListener("click", function() {
+    submitGuess("direct");
+  });
+
+  document.getElementById("sendToJudgeBtn").addEventListener("click", function() {
+    if (gameOver) return;
+    if (!canSendApiMessage()) {
+      addMsg(apiLimitMessage(), "bot");
+      logProv('apiMessageBlocked', 'click', { round: currentRound, attempt: stepCount, limitPerRound: MAX_API_MESSAGES_PER_ROUND, timestamp: new Date().toISOString() });
+      return;
+    }
+    var guess = getCurrentGuessFromBoard();
+    if (guess.indexOf(null) !== -1) { alert("Fill all 4 pegs before sending to the AI!"); return; }
+    var requestText = "Please review my guess: [" + guess.join(", ") + "].";
+    addMsg(requestText, "user");
+    chatHistory.push({ round: currentRound, attempt: stepCount, role: "user", message: requestText, timestamp: new Date().toISOString() });
+    setJudgeThinking(true);
+    logProv('sentToJudge', 'click', { guess: guess, round: currentRound, attempt: stepCount + 1, timestamp: new Date().toISOString() });
+    sendToJudge(requestText, guess);
+  });
+
+  document.getElementById("sendBtn").addEventListener("click", function() {
+    var txt = document.getElementById("chatInput").value.trim();
+    if (!txt) return;
+    if (!canSendApiMessage()) {
+      addMsg(apiLimitMessage(), "bot");
+      logProv('apiMessageBlocked', 'input', { round: currentRound, attempt: stepCount, limitPerRound: MAX_API_MESSAGES_PER_ROUND, timestamp: new Date().toISOString() });
+      return;
+    }
+    addMsg(txt, "user");
+    logProv('chatMessageSent', 'input', { message: txt, round: currentRound, attempt: stepCount, timestamp: new Date().toISOString() });
+    chatHistory.push({ round: currentRound, attempt: stepCount, role: "user", message: txt, timestamp: new Date().toISOString() });
+    document.getElementById("chatInput").value = "";
+    sendToJudge(txt, null);
+  });
+
+  document.getElementById("chatInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") { e.preventDefault(); document.getElementById("sendBtn").click(); }
+  });
+
+  startRound();
+});
+</script>
+</body>
+</html>

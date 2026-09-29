@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json",
+  "studyMetadata": {
+    "title": "AI Support Withdrawal in Mastermind - Part 1",
+    "version": "v-4-sona-part-1",
+    "authors": [
+      "Nils Ness"
+    ],
+    "date": "2026-09-29",
+    "description": "Part 1 of the four-part SONA experiment on the introduction and withdrawal of AI support.",
+    "organizations": [
+      "Technical University of Munich"
+    ]
+  },
+  "uiConfig": {
+    "contactEmail": "nils.ness@tum.de",
+    "helpTextPath": "HAIC_study/assets/help.md",
+    "logoPath": "HAIC_study/assets/logo.svg",
+    "withProgressBar": true,
+    "autoDownloadStudy": false,
+    "withSidebar": true,
+    "enumerateQuestions": true,
+    "urlParticipantIdParam": "sona_id",
+    "studyEndMsg": "Thank you. Part 1 is complete, and your SONA credit has been granted. SONA will provide access to the next part after the configured separation.",
+    "numSequences": 1
+  },
+  "importedLibraries": [
+    "haic-withdrawal"
+  ],
+  "components": {
+    "mastermind-part": {
+      "baseComponent": "$haic-withdrawal.components.mastermind",
+      "parameters": {
+        "partNumber": 1
+      }
+    },
+    "sona-completion-part": {
+      "baseComponent": "$haic-withdrawal.components.sona-completion",
+      "parameters": {
+        "partNumber": 1
+      }
+    }
+  },
+  "sequence": {
+    "order": "fixed",
+    "components": [
+      "$haic-withdrawal.components.introduction",
+      "$haic-withdrawal.components.game-tutorial-video",
+      "mastermind-part",
+      "$haic-withdrawal.components.session-state",
+      "$haic-withdrawal.components.control-mails-short",
+      "$haic-withdrawal.components.control-game-llm-experience",
+      "$haic-withdrawal.components.demographics",
+      "sona-completion-part"
+    ]
+  }
+}

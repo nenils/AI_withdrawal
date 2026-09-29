@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Mastermind</title>
+<!-- Load revisit-communicate to be able to send data to reVISit -->
+<script src="/revisitUtilities/revisit-communicate.js"></script>
+<!-- Load provenance tracking -->
+<script src="/revisitUtilities/revisit-provenance.js"></script>
+<style>
+  body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f7f9fb; color:#111; padding:18px; }
+  .game { text-align: center; max-width: 760px; margin: 0 auto 18px; }
+  .instructions { background:#eef6ff; border:1px solid #cfe6ff; padding:12px; border-radius:8px; margin-bottom:10px; font-size:14px; text-align:left; }
+  .board { display:flex; flex-direction:column; align-items:center; margin-top:12px; }
+  .row { display:flex; align-items:center; margin:8px 0; }
+  .peg { width:44px; height:44px; border:2px solid #333; border-radius:50%; margin:6px; background:white; cursor:pointer; }
+  .row.locked .peg { cursor:default; pointer-events:none; opacity:0.7; }
+  .feedback { display:flex; margin-left:12px; }
+  .feedback div { width:14px; height:14px; border-radius:50%; margin:2px; border:1px solid #222; }
+  .palette { display:flex; justify-content:center; margin-top:12px; gap:10px; }
+  .palette div { width:34px; height:34px; border-radius:50%; border:2px solid #333; cursor:pointer; }
+  .controls { margin-top:14px; display:flex; gap:10px; justify-content:center; }
+  button { font-weight:600; border-radius:8px; padding:8px 14px; cursor:pointer; }
+  #guessBtn { background:#2563eb; color:white; border:none; }
+
+  .chat { margin:20px auto 0 auto; max-width:760px; height:420px;
+          border-radius:10px; overflow:hidden;
+          box-shadow:0 6px 30px rgba(2,6,23,0.08);
+          background:linear-gradient(#ffffff,#fbfdff);
+          display:flex; flex-direction:column; }
+  .chat-header { background:#0f172a; color:white; padding:12px; font-weight:700; text-align:center; }
+  .chat-messages { flex:1; padding:14px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+  .chat-input { display:flex; border-top:1px solid #e6eefb; padding:10px; gap:8px; align-items:center; }
+  .msg { max-width:78%; padding:10px 12px; border-radius:12px; line-height:1.3;
+         box-shadow:0 1px 6px rgba(16,24,40,0.04); }
+  .msg.user { background:#e6f0ff; align-self:flex-end; color:#0b4da0; text-align:right; }
+  .msg.bot  { background:#0f172a; color:white; align-self:flex-start; }
+  .bot-text { white-space:pre-wrap; font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="game">
+  <h2>🎯 Mastermind</h2>
+  <div class="instructions">
+    1️⃣ Select a color.<br>
+    2️⃣ Click on a position.<br>
+    3️⃣ After placing 4 pegs, click <b>Submit Guess</b>.<br>
+    Colors allowed: <b>Blue, Green, Red, Yellow, Orange, Purple</b>.<br>
+    The Feedback is as follows: ⚫️ black peg = correct color & correct position; ⚪️ white peg = correct color & wrong position. <br>
+    💬 You can only chat <b>once</b> per attempt with the AI <b>GameMaster</b>!
+  </div>
+
+  <p><strong>Attempts:</strong> <span id="stepCounter">0</span></p>
+  <div class="board" id="board"></div>
+  <div class="palette" id="palette"></div>
+
+  <div class="controls">
+    <button id="guessBtn" type="button">Submit Guess</button>
+  </div>
+</div>
+
+<div class="chat">
+  <div class="chat-header">💬 GameMaster Review</div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="Ask anything, anytime..."
+           style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6eefb;">
+    <button id="sendBtn" type="button">Send</button>
+  </div>
+</div>
+
+<script>
+/* === Mastermind Logic === */
+const COLORS = ["Blue","Green","Red","Yellow","Orange","Purple"];
+const colorCss = c => c.toLowerCase();
+let secret = [], currentRow, stepCount = 0, selectedColor = null;
+let guessHistory = {}, feedbackHistory = {};
+let chatHistory = [], suggestionHistory = [];
+let chatLocked = false;
+let allInteractions = []; // Store all interactions for better tracking
+let mouseTrackingData = [];
+let lastMouseTime = 0;
+const MOUSE_TRACKING_INTERVAL = 100; // Track every 100ms to avoid too much data
+
+function trackMouseMovement(event) {
+  const now = Date.now();
+  // Only record mouse movements at intervals to prevent data overload
+  if (now - lastMouseTime > MOUSE_TRACKING_INTERVAL) {
+    const mouseData = {
+      x: event.clientX,
+      y: event.clientY,
+      timestamp: new Date().toISOString(),
+      timestampMs: now,
+      attempt: stepCount,
+      target: event.target.tagName,
+      targetClass: event.target.className,
+      targetId: event.target.id,
+      chatLocked: chatLocked
+    };
+    
+    mouseTrackingData.push(mouseData);
+    lastMouseTime = now;
+    
+    // Track with provenance system (safely)
+    try {
+      if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+        Revisit.logProvenance('mouseMovement', 'mousemove', mouseData);
+      }
+    } catch(e) { console.log('Provenance tracking not available'); }
+    
+    // Limit stored data to prevent memory issues (keep last 1000 movements)
+    if (mouseTrackingData.length > 1000) {
+      mouseTrackingData = mouseTrackingData.slice(-1000);
+    }
+  }
+}
+
+function el(t,o={}){ const e=document.createElement(t); if(o.class) e.className=o.class; if(o.text) e.textContent=o.text; return e; }
+
+// Enhanced tracking function that saves data immediately
+function trackInteraction(type, action, data = {}) {
+  const interaction = {
+    type: type,
+    action: action,
+    timestamp: new Date().toISOString(),
+    stepCount: stepCount,
+    ...data
+  };
+  
+  allInteractions.push(interaction);
+  
+  // Save to revisit provenance (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.logProvenance) {
+      Revisit.logProvenance(type, action, interaction);
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+  
+  // Also save intermediate data to reVISit periodically
+  saveIntermediateData();
+}
+
+// Save intermediate data to reVISit
+function saveIntermediateData() {
+  try {
+    const taskID = "mastermindGame";
+    const intermediateAnswers = {
+      [`${taskID}_currentAttempts`]: stepCount,
+      [`${taskID}_currentGuessHistory`]: JSON.stringify(guessHistory),
+      [`${taskID}_currentFeedbackHistory`]: JSON.stringify(feedbackHistory),
+      [`${taskID}_currentChatHistory`]: JSON.stringify(chatHistory),
+      [`${taskID}_currentSuggestionHistory`]: JSON.stringify(suggestionHistory),
+      [`${taskID}_allInteractions`]: JSON.stringify(allInteractions),
+      [`${taskID}_mouseTrackingData`]: JSON.stringify(mouseTrackingData),
+      [`${taskID}_lastUpdate`]: new Date().toISOString()
+    };
+    
+    // Add provenance data if available
+    if (typeof Revisit !== 'undefined' && Revisit.getProvenance) {
+      intermediateAnswers[`${taskID}_currentProvenance`] = Revisit.getProvenance();
+    }
+    
+    // Save intermediate data (non-blocking)
+    if (typeof Revisit !== 'undefined' && Revisit.postAnswers) {
+      Revisit.postAnswers(intermediateAnswers, false); // false = don't navigate away
+    }
+  } catch(e) { 
+    console.log('Intermediate data save failed:', e); 
+  }
+}
+
+function unlockChat(){ 
+  chatLocked = false; 
+  document.getElementById("chatInput").disabled=false; 
+  document.getElementById("sendBtn").disabled=false; 
+  
+  trackInteraction('chatUnlocked', 'system', {
+    attempt: stepCount
+  });
+}
+
+function lockChat(){ 
+  chatLocked = true; 
+  document.getElementById("chatInput").disabled=true; 
+  document.getElementById("sendBtn").disabled=true; 
+  
+  trackInteraction('chatLocked', 'system', {
+    attempt: stepCount
+  });
+}
+
+function startGame(){
+  document.getElementById("board").innerHTML = "";
+  secret = Array.from({length:4}, ()=>COLORS[Math.floor(Math.random()*COLORS.length)]);
+  stepCount = 0;
+  document.getElementById("stepCounter").textContent = stepCount;
+  guessHistory = {}; 
+  feedbackHistory = {};
+  chatHistory = [];
+  suggestionHistory = [];
+  allInteractions = [];
+  mouseTrackingData = []; // Reset mouse tracking data
+  
+  trackInteraction('gameStarted', 'system', {
+    secretCode: secret
+  });
+  
+  addRow();
+  renderPalette();
+}
+
+function addRow(){
+  const board = document.getElementById("board");
+  currentRow = el("div",{class:"row"});
+  for(let i=0;i<4;i++){
+    const peg = el("div",{class:"peg"});
+    peg.addEventListener("click",()=>{
+      if(selectedColor && !currentRow.classList.contains("locked")){
+        peg.style.background = colorCss(selectedColor);
+        peg.dataset.color = selectedColor;
+        
+        trackInteraction('pegPlaced', 'click', {
+          position: i,
+          color: selectedColor,
+          attempt: stepCount + 1
+        });
+      }
+    });
+    currentRow.appendChild(peg);
+  }
+  const fb = el("div",{class:"feedback"});
+  currentRow.appendChild(fb);
+  board.appendChild(currentRow);
+}
+
+function renderPalette(){
+  const p = document.getElementById("palette"); p.innerHTML = "";
+  COLORS.forEach(c=>{
+    const d = el("div");
+    d.style.background = colorCss(c);
+    d.title = c;
+    d.addEventListener("click", ()=> {
+      selectedColor = c;
+      Array.from(p.children).forEach(ch => ch.style.outline = "");
+      d.style.outline = "3px solid rgba(0,0,0,0.12)";
+      
+      trackInteraction('colorSelected', 'click', {
+        color: c,
+        attempt: stepCount + 1
+      });
+    });
+    p.appendChild(d);
+  });
+}
+
+function getFeedback(guess){
+  let black = 0, white = 0;
+  const s = [...secret], g = [...guess];
+  for(let i=0;i<4;i++){ if(g[i]===s[i]){ black++; s[i]=g[i]=null; } }
+  for(let i=0;i<4;i++){ if(g[i]){ const idx = s.indexOf(g[i]); if(idx !== -1){ white++; s[idx] = null; } } }
+  return {black,white};
+}
+
+function showFeedback({black,white}){
+  const fb = currentRow.querySelector(".feedback"); fb.innerHTML = "";
+  for(let i=0;i<black;i++){ const d = el("div"); d.style.background="black"; fb.appendChild(d); }
+  for(let i=0;i<white;i++){ const d = el("div"); d.style.background="white"; fb.appendChild(d); }
+}
+
+function finishGame(msg) {
+  const gameWon = msg.includes("YOUwin!");
+  
+  trackInteraction('gameEnded', 'system', {
+    finalMessage: msg,
+    totalAttempts: stepCount,
+    won: gameWon,
+    secretCode: secret,
+    finalGuessHistory: guessHistory,
+    finalFeedbackHistory: feedbackHistory,
+    finalChatHistory: chatHistory,
+    finalSuggestionHistory: suggestionHistory,
+    finalMouseTrackingData: mouseTrackingData
+  });
+
+  alert(msg);
+
+  // Post all final game data to reVISit database
+  const taskID = "mastermindGame";
+  const answers = {
+    [`${taskID}_attempts`]: stepCount,
+    [`${taskID}_secretCode`]: secret.join(", "),
+    [`${taskID}_guessHistory`]: JSON.stringify(guessHistory),
+    [`${taskID}_feedbackHistory`]: JSON.stringify(feedbackHistory),
+    [`${taskID}_chatHistory`]: JSON.stringify(chatHistory),
+    [`${taskID}_suggestionHistory`]: JSON.stringify(suggestionHistory),
+    [`${taskID}_allInteractions`]: JSON.stringify(allInteractions),
+    [`${taskID}_mouseTrackingData`]: JSON.stringify(mouseTrackingData),
+    [`${taskID}_finalPassword`]: gameWon ? "YOUwin!" : "YOUgo!",
+    [`${taskID}_gameCompleted`]: true,
+    [`${taskID}_completionTime`]: new Date().toISOString()
+  };
+  
+  // Add provenance data if available
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.getProvenance) {
+      answers[`${taskID}_provenance`] = Revisit.getProvenance();
+    }
+  } catch(e) { console.log('Provenance data not available'); }
+  
+  // Final save to reVISit
+  if (typeof Revisit !== 'undefined' && Revisit.postAnswers) {
+    Revisit.postAnswers(answers);
+  } else {
+    console.log('reVISit not available, saving data locally:', answers);
+    localStorage.setItem('mastermindGameData', JSON.stringify(answers));
+  }
+}
+
+async function submitGuess(){
+  if(!currentRow) return;
+  const pegs = currentRow.querySelectorAll(".peg");
+  const guess = Array.from(pegs).map(p=>p.dataset.color||null);
+  if(guess.includes(null)){ alert("Fill all 4 pegs!"); return; }
+
+  stepCount++;
+  document.getElementById("stepCounter").textContent = stepCount;
+  const fb = getFeedback(guess);
+  guessHistory[stepCount] = guess.slice();
+  feedbackHistory[stepCount] = fb;
+
+  trackInteraction('guessSubmitted', 'click', {
+    attempt: stepCount,
+    guess: guess,
+    feedback: fb,
+    guessString: guess.join(", "),
+    blackPegs: fb.black,
+    whitePegs: fb.white
+  });
+
+  showFeedback(fb);
+  currentRow.classList.add("locked");
+
+  if(fb.black === 4){
+    finishGame("🎉 You cracked the code! The Password is: YOUwin!");
+    return;
+  }
+  if(stepCount >= 10){
+    finishGame("Game over! Max attempts reached. The Password is: YOUgo! ");
+    return;
+  }
+  
+  addRow();
+  unlockChat();
+}
+
+/* === Chat with OpenRouter Llama === */
+const OPENROUTER_KEY = "{{OPENROUTER_API_KEY}}";
+
+function addMsg(text, cls){
+  const chatBox = document.getElementById("chatMessages");
+  const m = el("div",{class:"msg " + cls, text});
+  chatBox.appendChild(m);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function reviewGuess(userMsg=""){
+  let historyStr="";
+  for(let i=1;i<=stepCount;i++){
+    const g=guessHistory[i]||[],f=feedbackHistory[i]||{black:0,white:0};
+    historyStr+=`Attempt ${i}: Guess=[${g.join(", ")}], Feedback=${f.black} black, ${f.white} white\n`;
+  }
+  const sys=`You are a Mastermind coach and your task is to review the Players suggestion. Do not give your own suggestion to the player! The colors that are allowed are: Blue, Green, Red, Yellow, Orange, Purple. Give your review based on the full history.\nHistory:\n${historyStr}. The colors can be present multiple times in the code, keep that in mind when you review the players suggestion. Keep the Explanation concise, short to 2-3 sentences and highlight the important parts.`;
+  const payload={model:"meta-llama/Llama-4-maverick",messages:[{role:"system",content:sys},{role:"user",content:userMsg}]};
+  
+  // Store user message in chat history
+  chatHistory.push({
+    attempt: stepCount,
+    role: "user",
+    message: userMsg,
+    timestamp: new Date().toISOString()
+  });
+
+  trackInteraction('aiRequestSent', 'system', {
+    userMessage: userMsg,
+    attempt: stepCount
+  });
+
+  try{
+    const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+OPENROUTER_KEY},body:JSON.stringify(payload)});
+    const d=await r.json();
+    const reply = d.choices?.[0]?.message?.content||"⚠️ No response";
+    addMsg(reply,"bot");
+    
+    // Store bot response in chat history
+    chatHistory.push({
+      attempt: stepCount,
+      role: "bot",
+      message: reply,
+      timestamp: new Date().toISOString()
+    });
+    
+    trackInteraction('aiResponseReceived', 'system', {
+      responseLength: reply.length,
+      attempt: stepCount
+    });
+  }catch(err){
+    const errorMsg = "⚠️ Error calling model.";
+    addMsg(errorMsg,"bot");
+    console.error(err);
+    
+    // Store error in chat history
+    chatHistory.push({
+      attempt: stepCount,
+      role: "bot",
+      message: errorMsg,
+      timestamp: new Date().toISOString()
+    });
+    
+    trackInteraction('aiError', 'system', {
+      error: err.message,
+      attempt: stepCount
+    });
+  }
+}
+
+document.getElementById("sendBtn").addEventListener("click", ()=>{
+  if(chatLocked){ 
+    alert("Only one chat per attempt!"); 
+    trackInteraction('chatBlocked', 'click', {
+      attempt: stepCount
+    });
+    return; 
+  }
+  const txt = document.getElementById("chatInput").value.trim();
+  if(!txt) return;
+  addMsg(txt,"user");
+  
+  trackInteraction('chatMessageSent', 'input', {
+    message: txt,
+    messageLength: txt.length,
+    attempt: stepCount
+  });
+  
+  document.getElementById("chatInput").value = "";
+  lockChat();
+  reviewGuess(txt);
+});
+
+/* === Event bindings === */
+document.addEventListener("DOMContentLoaded", ()=>{
+  // Initialize provenance tracking (safely)
+  try {
+    if (typeof Revisit !== 'undefined' && Revisit.initProvenance) {
+      Revisit.initProvenance();
+      
+      trackInteraction('pageLoaded', 'system', {
+        userAgent: navigator.userAgent
+      });
+    }
+  } catch(e) { console.log('Provenance tracking not available'); }
+
+  // Add mouse movement tracking
+  document.addEventListener('mousemove', trackMouseMovement, { passive: true });
+
+  document.getElementById("guessBtn").addEventListener("click", submitGuess);
+
+  document.getElementById("sendBtn").addEventListener("click", ()=>{
+    if(chatLocked){ 
+      alert("Only one chat per attempt!"); 
+      trackInteraction('chatBlocked', 'click', {
+        attempt: stepCount
+      });
+      return; 
+    }
+    const txt = document.getElementById("chatInput").value.trim();
+    if(!txt) return;
+    addMsg(txt,"user");
+    
+    trackInteraction('chatMessageSent', 'input', {
+      message: txt,
+      messageLength: txt.length,
+      attempt: stepCount
+    });
+    
+    document.getElementById("chatInput").value = "";
+    lockChat();
+    reviewGuess(txt);
+  });
+
+  document.getElementById("chatInput").addEventListener("keydown", e=>{
+    if(e.key === "Enter"){ 
+      e.preventDefault(); 
+      document.getElementById("sendBtn").click(); 
+    }
+    
+    // Track typing in chat input
+    if(e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
+      trackInteraction('chatTyping', 'keydown', {
+        key: e.key,
+        inputLength: e.target.value.length,
+        attempt: stepCount
+      });
+    }
+  });
+
+  // Start the game
+  startGame();
+});
+</script>
+</body>
+</html>
