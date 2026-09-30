@@ -21,7 +21,15 @@ Allow inbound TCP ports `80` and `443`. Supabase's Kong, Analytics, and MinIO po
 
 ## 2. Configure Supabase
 
-Edit `supabase/.env` before the first start. Replace every value marked as insecure, including the PostgreSQL password, JWT secret, anon key, service-role key, dashboard password, and Logflare key. The JWT secret and generated anon/service-role tokens must correspond.
+Generate VM-local Supabase and study environment files before the first start:
+
+```bash
+python3 scripts/prepare_deployment_env.py
+```
+
+This creates `supabase/.env` and `.env.docker` with permissions `0600`, random
+database/dashboard/logging secrets, and anon/service-role JWTs signed by the
+same random JWT secret. The files are ignored by Git. Do not commit them.
 
 For the bundled same-domain deployment, set:
 
@@ -45,14 +53,8 @@ docker exec -i supabase-db psql -U postgres -d postgres < supabase/volumes/db/in
 
 ## 3. Configure the study
 
-Create the VM-local environment file:
-
-```bash
-cp .env.docker.example .env.docker
-chmod 600 .env.docker
-```
-
-Fill in at least:
+Open the generated VM-local study environment file and fill in at least the
+OpenRouter and SONA values:
 
 ```env
 VITE_STORAGE_ENGINE=supabase

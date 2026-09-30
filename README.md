@@ -45,7 +45,10 @@ docker compose \
   up --build -d
 ```
 
-Before deploying, copy `.env.docker.example` to `.env.docker`, replace all placeholder values, configure `supabase/.env`, and install the TLS certificate files. Full instructions are in [DEPLOY_LRZ_DOCKER.md](DEPLOY_LRZ_DOCKER.md).
+Before deploying, run `python3 scripts/prepare_deployment_env.py`, add the
+OpenRouter and SONA values to the generated `.env.docker`, and install the TLS
+certificate files. Full instructions are in
+[DEPLOY_LRZ_DOCKER.md](DEPLOY_LRZ_DOCKER.md).
 
 Never commit `.env.docker`, production Supabase secrets, private keys, participant exports, or database backups.
 
