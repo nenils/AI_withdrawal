@@ -47,7 +47,7 @@
 
 Welcome. **Mastermind** is a code-breaking game in which you try to identify a hidden sequence of four colors. After each guess, you receive feedback that can help you refine the next guess. Colors may repeat.
 
-This is a **four-part online study** administered through SONA. Each part contains four complete Mastermind games with up to ten attempts per game, followed by questions about your experience. SONA makes the next part available after the configured 24-hour separation from the credited completion of the preceding part. The form of support available during the task may differ between participants and across the study.
+This is a **four-part online study** administered through SONA. Each part contains four complete Mastermind games with up to ten attempts per game, followed by questions about your experience. SONA makes the next part available after the configured 24-hour separation from the credited completion of the preceding part.
 
 Participation is voluntary. You may stop at any time without giving a reason. There are no right or wrong questionnaire answers; please respond honestly based on your experience in the current session.
 

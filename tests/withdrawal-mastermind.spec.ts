@@ -72,7 +72,7 @@ function activeState(overrides: Partial<StudyState>): StudyState {
   };
 }
 
-test('explicitly introduces Advisor support in Session 1 game 4', async ({ page }) => {
+test('shows Advisor tools without disclosing the manipulation', async ({ page }) => {
   await openGame(page, activeState({
     supportAvailable: true,
     supportPhase: 'introduced',
@@ -85,13 +85,14 @@ test('explicitly introduces Advisor support in Session 1 game 4', async ({ page 
     },
   }));
 
-  await expect(page.getByRole('heading', { name: 'AI support is now available' })).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText('AI support available', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'AI Advisor' })).toBeVisible();
+  await expect(page.locator('#conditionBadge')).toHaveCount(0);
+  await expect(page.locator('#supportNotice')).toHaveCount(0);
+  await expect(page.locator('#phaseModal')).toHaveCount(0);
+  await expect(page.getByText(/assigned condition|support is now available|withdrawn/i)).toHaveCount(0);
 });
 
-test('explicitly withdraws Judge support after Session 4 game 1', async ({ page }) => {
+test('hides Judge tools without announcing the withdrawal', async ({ page }) => {
   await openGame(page, activeState({
     condition: 'judge',
     currentSession: 4,
@@ -106,8 +107,9 @@ test('explicitly withdraws Judge support after Session 4 game 1', async ({ page 
     },
   }));
 
-  await expect(page.getByRole('heading', { name: 'AI support has been withdrawn' })).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByText('AI support withdrawn', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'AI Judge' })).toBeHidden();
+  await expect(page.locator('#conditionBadge')).toHaveCount(0);
+  await expect(page.locator('#supportNotice')).toHaveCount(0);
+  await expect(page.locator('#phaseModal')).toHaveCount(0);
+  await expect(page.getByText(/assigned condition|support (has been )?withdrawn/i)).toHaveCount(0);
 });

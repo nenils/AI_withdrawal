@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
-    "title": "AI Support Withdrawal in Mastermind - Part 4",
+    "title": "Longitudinal Mastermind Study - Part 4",
     "version": "v-4-sona-part-4",
     "authors": [
       "Nils Ness"
     ],
     "date": "2026-09-29",
-    "description": "Part 4 of the four-part SONA experiment on the introduction and withdrawal of AI support.",
+    "description": "Part 4 of the four-part SONA Mastermind study.",
     "organizations": [
       "Technical University of Munich"
     ]

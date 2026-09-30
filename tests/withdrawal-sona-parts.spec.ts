@@ -38,6 +38,8 @@ test('four unique SONA study configs are published', async ({ request }) => {
     expect(seenPaths.has(path)).toBeFalsy();
     seenPaths.add(path);
     expect(config.uiConfig.urlParticipantIdParam).toBe('sona_id');
+    expect(config.studyMetadata.title).toBe(`Longitudinal Mastermind Study - Part ${partNumber}`);
+    expect(config.studyMetadata.description).not.toMatch(/condition|withdraw|support/i);
     expect(config.components['mastermind-part'].parameters.partNumber).toBe(partNumber);
     expect(config.components['sona-completion-part'].parameters.partNumber).toBe(partNumber);
     expect(config.sequence.components.at(-1)).toBe('sona-completion-part');
@@ -66,7 +68,7 @@ for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
     await page.goto(`/HAIC_part_${partNumber}/?sona_id=sona-route-${partNumber}`);
 
     if (partNumber === 1) {
-      await expect(page.getByRole('heading', { name: 'Mastermind Study' })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('heading', { name: 'Mastermind Study', exact: true })).toBeVisible({ timeout: 15000 });
     } else {
       await expect(page.frameLocator('iframe').getByRole('heading', { name: 'Mastermind' })).toBeVisible({ timeout: 15000 });
     }

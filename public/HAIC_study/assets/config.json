@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/main/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
-    "title": "AI Support Withdrawal in Mastermind",
+    "title": "Longitudinal Mastermind Study",
     "version": "v-3-longitudinal",
     "authors": [
       "Nils Ness"
     ],
     "date": "2026-09-29",
-    "description": "Four-session longitudinal experiment on the introduction and withdrawal of AI support.",
+    "description": "Four-session longitudinal Mastermind study.",
     "organizations": [
       "Technical University of Munich"
     ]
@@ -67,7 +67,7 @@
       "type": "website",
       "path": "HAIC_study/assets/mastermind_withdrawal.html",
       "instructionLocation": "aboveStimulus",
-      "description": "Control condition without AI support across all four sessions.",
+      "description": "Four complete Mastermind games.",
       "parameters": {
         "condition": "control"
       },
@@ -90,7 +90,7 @@
       "type": "website",
       "path": "HAIC_study/assets/mastermind_withdrawal.html",
       "instructionLocation": "aboveStimulus",
-      "description": "High cognitive responsibility (AI as a Judge): you create and submit guesses; the AI has low autonomy and only reviews a guess when you explicitly send it.",
+      "description": "Four complete Mastermind games.",
       "parameters": {
         "condition": "judge"
       },
@@ -113,7 +113,7 @@
       "type": "website",
       "path": "HAIC_study/assets/mastermind_withdrawal.html",
       "instructionLocation": "aboveStimulus",
-      "description": "Low cognitive responsibility (AI as an Advisor): the AI has high autonomy and proactively proposes the next guess using a trained Mastermind RL model; you can apply or adjust it before submitting.",
+      "description": "Four complete Mastermind games.",
       "parameters": {
         "condition": "advisor"
       },
