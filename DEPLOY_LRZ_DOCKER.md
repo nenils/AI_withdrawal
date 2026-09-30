@@ -91,6 +91,21 @@ files under `live/` are symlinks into `archive/`.
 
 ## 5. Build and start
 
+For Supabase Cloud, build and start only the study and API containers:
+
+```bash
+docker compose \
+  --env-file .env.docker \
+  -f docker-compose.yml \
+  -f docker-compose.supabase-cloud.yml \
+  up --build -d
+```
+
+The Cloud override deliberately omits the `/supabase/` nginx proxy because the
+frontend and API connect directly to the configured Supabase project URL.
+
+For the bundled self-hosted Supabase deployment, use:
+
 ```bash
 docker compose \
   --env-file .env.docker \

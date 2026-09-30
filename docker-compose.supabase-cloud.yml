@@ -1,0 +1,10 @@
+services:
+  study:
+    ports:
+      - "0.0.0.0:${STUDY_HTTP_PORT:-80}:80"
+      - "0.0.0.0:${STUDY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/https.supabase-cloud.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount the complete Certbot tree because live/ certificates are symlinks
+      # into archive/. Keeping it read-only limits nginx to certificate access.
+      - ${TLS_CERT_ROOT:-/etc/letsencrypt}:/etc/letsencrypt:ro
