@@ -15,5 +15,3 @@ After every guess, you receive feedback:
 - The order of the feedback markers does not correspond to the positions in your guess.
 
 You will complete four sessions. The next session becomes available 24 hours after you complete the current session. Always return using the same participant link.
-
-Depending on your assigned condition, AI support may become available or may later be withdrawn. The game will clearly notify you whenever support availability changes.

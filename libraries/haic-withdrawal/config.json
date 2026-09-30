@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/LibraryConfigSchema.json",
-  "description": "Shared components for the four-part SONA AI-support withdrawal study.",
+  "description": "Shared components for the four-part SONA Mastermind study.",
   "components": {
     "introduction": {
       "type": "markdown",
@@ -761,7 +761,7 @@
         },
         {
           "id": "state-confidence-independent",
-          "prompt": "I feel confident that I could solve similar games without AI support.",
+          "prompt": "I feel confident that I could solve similar games independently.",
           "required": true,
           "type": "likert",
           "leftLabel": "Strongly disagree",

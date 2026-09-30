@@ -15,10 +15,6 @@
     h1 { margin:0; font-size:24px; letter-spacing:0; }
     .meta { display:flex; flex-wrap:wrap; gap:8px; }
     .badge { border:1px solid #b7c0ca; background:#fff; padding:5px 9px; border-radius:6px; font-size:13px; font-weight:650; }
-    .notice { border-left:5px solid #2b6cb0; background:#eaf3fb; padding:13px 15px; margin:0 0 16px; }
-    .notice.withdrawn { border-color:#b42318; background:#fff0ee; }
-    .notice.introduced { border-color:#18794e; background:#eaf7f0; }
-    .notice strong { display:block; margin-bottom:3px; }
     .layout { display:grid; grid-template-columns:minmax(0, 1fr) 330px; gap:18px; align-items:start; }
     .workspace, .support { background:#fff; border:1px solid #ccd3da; border-radius:8px; padding:16px; }
     .support { position:sticky; top:12px; }
@@ -51,11 +47,6 @@
     .status { min-height:24px; margin-top:12px; font-weight:650; }
     .error { color:#b42318; }
     .success { color:#18794e; }
-    .modal { position:fixed; inset:0; background:rgba(22,27,34,.72); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
-    .modal[hidden] { display:none; }
-    .modal-panel { width:min(520px, 100%); background:#fff; border-radius:8px; padding:24px; border-top:7px solid #b42318; }
-    .modal-panel.introduction { border-color:#18794e; }
-    .modal-panel h2 { margin-top:0; }
     @media (max-width:760px) { body{padding:10px}.layout{grid-template-columns:1fr}.support{position:static}.topbar{align-items:flex-start;flex-direction:column}.history-row{grid-template-columns:28px 1fr 90px}.peg{width:43px;height:43px} }
   </style>
 </head>
@@ -64,7 +55,6 @@
     <header class="topbar">
       <h1>Mastermind</h1>
       <div class="meta">
-        <span class="badge" id="conditionBadge">Loading</span>
         <span class="badge" id="sessionBadge">Session -/4</span>
         <span class="badge" id="roundBadge">Game -/4</span>
         <span class="badge" id="attemptBadge">Attempt -/10</span>
@@ -78,7 +68,6 @@
     </section>
 
     <div id="game" hidden>
-      <div id="supportNotice" class="notice"></div>
       <div class="layout">
         <section class="workspace">
           <p>Choose four colors. Colors may repeat. Black feedback means correct color and position; white means correct color in the wrong position.</p>
@@ -102,14 +91,6 @@
     </div>
   </main>
 
-  <div class="modal" id="phaseModal" hidden>
-    <div class="modal-panel" id="phasePanel">
-      <h2 id="phaseTitle"></h2>
-      <p id="phaseText"></p>
-      <button class="primary" id="acknowledgePhase">Continue</button>
-    </div>
-  </div>
-
   <script>
   (function () {
     "use strict";
@@ -124,7 +105,7 @@
     var aiSuggestion = null;
     var pendingEvents = [];
     var lastMouseAt = 0;
-    var acknowledgedPhases = {};
+    var lastSupportPhase = null;
 
     function el(id) { return document.getElementById(id); }
     function now() { return new Date().toISOString(); }
@@ -173,37 +154,11 @@
       if (state.partGameComplete) answers["played-game"] = "complete";
       try { Revisit.postAnswers(answers); } catch (ignore) {}
     }
-    function phaseKey() {
-      return state.currentSession + ":" + (state.game ? state.game.round : 0) + ":" + state.supportPhase;
-    }
-    function maybeShowPhaseModal() {
-      if (condition === "control" || !state.game) return;
-      var isIntroduction = state.supportPhase === "introduced";
-      var isWithdrawal = state.supportPhase === "withdrawn" && state.currentSession === 4 && state.game.round === 2;
-      var key = phaseKey();
-      if ((!isIntroduction && !isWithdrawal) || acknowledgedPhases[key]) return;
-      el("phaseTitle").textContent = isIntroduction ? "AI support is now available" : "AI support has been withdrawn";
-      el("phaseText").textContent = isIntroduction
-        ? (condition === "advisor" ? "From this game onward, the AI Advisor can propose and prefill guesses." : "From this game onward, the AI Judge can review guesses when you request it.")
-        : "For the remaining games in this session, you must solve the code without AI support.";
-      el("phasePanel").className = "modal-panel" + (isIntroduction ? " introduction" : "");
-      el("phaseModal").hidden = false;
-      event(isIntroduction ? "supportIntroduced" : "supportWithdrawn", { condition:condition });
-    }
-    function renderNotice() {
-      var notice = el("supportNotice");
-      notice.className = "notice";
-      if (condition === "control") {
-        notice.innerHTML = "<strong>No AI support</strong>You will solve all games independently.";
-      } else if (state.supportAvailable) {
-        notice.classList.add(state.supportPhase === "introduced" ? "introduced" : "");
-        notice.innerHTML = "<strong>AI support available</strong>" + (condition === "advisor" ? "The AI Advisor can propose your next guess." : "The AI Judge can review a guess when asked.");
-      } else if (state.supportPhase === "withdrawn") {
-        notice.classList.add("withdrawn");
-        notice.innerHTML = "<strong>AI support withdrawn</strong>You must complete the remaining games without AI assistance.";
-      } else {
-        notice.innerHTML = "<strong>AI support not yet available</strong>You must currently solve the game independently.";
+    function trackSupportPhase() {
+      if (lastSupportPhase !== null && lastSupportPhase !== state.supportPhase) {
+        event("supportPhaseChanged", {from:lastSupportPhase, to:state.supportPhase, condition:condition});
       }
+      lastSupportPhase = state.supportPhase;
     }
     function renderPalette() {
       el("palette").innerHTML = "";
@@ -268,7 +223,6 @@
       el("loading").hidden = true;
       el("complete").hidden = true;
       el("game").hidden = true;
-      el("conditionBadge").textContent = condition === "control" ? "No support" : "AI " + condition.charAt(0).toUpperCase() + condition.slice(1);
       el("sessionBadge").textContent = "Session " + state.currentSession + "/4";
       if (state.partGameComplete || state.partCredited) {
         el("complete").hidden = false;
@@ -279,7 +233,7 @@
       el("game").hidden = false;
       el("roundBadge").textContent = "Game " + state.game.round + "/4";
       el("attemptBadge").textContent = "Attempt " + (state.game.guesses.length + 1) + "/10";
-      renderNotice(); renderPalette(); renderGuess(); renderHistory(); renderSupport(); maybeShowPhaseModal(); postRevisit();
+      trackSupportPhase(); renderPalette(); renderGuess(); renderHistory(); renderSupport(); postRevisit();
       if (condition === "advisor" && state.supportAvailable && !aiSuggestion) requestAI(true);
     }
     function setBusy(busy) {
@@ -409,7 +363,6 @@
     el("clearGuess").onclick = function () { currentGuess=[null,null,null,null]; renderGuess(); event("guessCleared"); };
     el("askAI").onclick = function () { requestAI(false); };
     el("applyAI").onclick = function () { applyAI(false); };
-    el("acknowledgePhase").onclick = function () { acknowledgedPhases[phaseKey()] = true; el("phaseModal").hidden=true; event("supportNoticeAcknowledged", {phase:state.supportPhase}); flushEvents(); };
     document.addEventListener("click", function (e) { event("click", {x:e.clientX, y:e.clientY, target:e.target && (e.target.id || e.target.className || e.target.tagName)}); });
     document.addEventListener("mousemove", function (e) { if (Date.now()-lastMouseAt < 250) return; lastMouseAt=Date.now(); event("mouseMove", {x:e.clientX,y:e.clientY}); });
     document.addEventListener("keydown", function (e) { event("keyDown", {key:e.key, code:e.code}); });
