@@ -8,3 +8,5 @@ services:
       # Mount the complete Certbot tree because live/ certificates are symlinks
       # into archive/. Keeping it read-only limits nginx to certificate access.
       - ${TLS_CERT_ROOT:-/etc/letsencrypt}:/etc/letsencrypt:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
