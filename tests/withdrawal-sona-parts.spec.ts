@@ -43,6 +43,10 @@ test('four unique SONA study configs are published', async ({ request }) => {
     expect(config.components['mastermind-part'].parameters.partNumber).toBe(partNumber);
     expect(config.components['sona-completion-part'].parameters.partNumber).toBe(partNumber);
     expect(config.sequence.components.at(-1)).toBe('sona-completion-part');
+
+    const sequence = config.sequence.components as string[];
+    expect(sequence.includes('$haic-withdrawal.components.demographics')).toBe(partNumber === 1);
+    expect(sequence.includes('$haic-withdrawal.components.sus')).toBe(partNumber === 3);
   }
 });
 

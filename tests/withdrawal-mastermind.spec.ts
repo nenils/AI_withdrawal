@@ -113,3 +113,12 @@ test('hides Judge tools without announcing the withdrawal', async ({ page }) => 
   await expect(page.locator('#phaseModal')).toHaveCount(0);
   await expect(page.getByText(/assigned condition|support (has been )?withdrawn/i)).toHaveCount(0);
 });
+
+test('shows and records a session confirmation code after four games', async ({ page }) => {
+  await openGame(page, activeState({
+    partGameComplete: true,
+  }));
+
+  await expect(page.getByText('MM-SESSION-1-COMPLETE', { exact: true })).toBeVisible();
+  await expect(page.getByText('This session\'s games are complete', { exact: true })).toBeVisible();
+});
