@@ -46,6 +46,7 @@
     "components": [
       "mastermind-part",
       "$haic-withdrawal.components.session-state",
+      "$haic-withdrawal.components.sus",
       "sona-completion-part"
     ]
   }

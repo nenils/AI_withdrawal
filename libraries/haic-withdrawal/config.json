@@ -793,6 +793,110 @@
         "margin": "0 auto"
       }
     },
+    "sus": {
+      "type": "questionnaire",
+      "description": "System Usability Scale for the Mastermind study interface.",
+      "responseDividers": true,
+      "instructionLocation": "aboveStimulus",
+      "instruction": "## Usability of the study interface\nPlease indicate how strongly you agree or disagree with each statement about the system you used in this study.",
+      "response": [
+        {
+          "id": "sus-01-use-frequently",
+          "prompt": "I think that I would like to use this system frequently.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-02-complex",
+          "prompt": "I found the system unnecessarily complex.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-03-easy",
+          "prompt": "I thought the system was easy to use.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-04-technical-support",
+          "prompt": "I think that I would need the support of a technical person to be able to use this system.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-05-integrated",
+          "prompt": "I found the various functions in this system were well integrated.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-06-inconsistent",
+          "prompt": "I thought there was too much inconsistency in this system.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-07-learn-quickly",
+          "prompt": "I would imagine that most people would learn to use this system very quickly.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-08-cumbersome",
+          "prompt": "I found the system very cumbersome to use.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-09-confident",
+          "prompt": "I felt very confident using the system.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        },
+        {
+          "id": "sus-10-learn-before",
+          "prompt": "I needed to learn a lot of things before I could get going with this system.",
+          "required": true,
+          "type": "likert",
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 5
+        }
+      ],
+      "style": {
+        "width": "75%",
+        "maxWidth": "960px",
+        "margin": "0 auto"
+      }
+    },
     "sona-completion": {
       "type": "website",
       "path": "HAIC_study/assets/sona_completion.html",

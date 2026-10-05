@@ -64,6 +64,7 @@
     <section id="loading" class="lock"><h2>Preparing your session</h2><p>Please wait.</p></section>
     <section id="complete" class="lock" hidden>
       <h2>This session's games are complete</h2>
+      <p>Session confirmation code: <strong id="sessionConfirmationCode"></strong></p>
       <p>Please continue to the session questionnaire. SONA credit is granted only after the full part is submitted.</p>
     </section>
 
@@ -109,6 +110,7 @@
 
     function el(id) { return document.getElementById(id); }
     function now() { return new Date().toISOString(); }
+    function completionCode() { return "MM-SESSION-" + partNumber + "-COMPLETE"; }
     function event(type, data) {
       pendingEvents.push({
         type: type,
@@ -151,7 +153,7 @@
         mastermindGame_completedSessions: JSON.stringify(state.completedSessions || []),
         mastermindGame_lastUpdatedAt: now()
       };
-      if (state.partGameComplete) answers["played-game"] = "complete";
+      if (state.partGameComplete) answers["played-game"] = completionCode();
       try { Revisit.postAnswers(answers); } catch (ignore) {}
     }
     function trackSupportPhase() {
@@ -225,6 +227,7 @@
       el("game").hidden = true;
       el("sessionBadge").textContent = "Session " + state.currentSession + "/4";
       if (state.partGameComplete || state.partCredited) {
+        el("sessionConfirmationCode").textContent = completionCode();
         el("complete").hidden = false;
         postRevisit();
         return;
