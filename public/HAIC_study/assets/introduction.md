@@ -61,7 +61,7 @@ By selecting **Next**, you confirm that you have read the information below and 
   </summary>
 
   <div style="margin-top: 1rem; padding: 1rem; border: 1px solid #dbe3ef; border-radius: 8px; background: #f8fafc;">
-    <p>The study records your SONA survey code, questionnaire responses, game guesses and feedback, timestamps, interactions with any available AI support, and technical interaction events such as clicks and page visibility. Your email address is not collected by this experiment application.</p>
+    <p>The study records your SONA survey code, questionnaire responses, game guesses and feedback, timestamps, interactions with any available AI support, and technical interaction events such as pointer movement, clicks, keyboard activity, scrolling, and page visibility. In the game-level keyboard tracking, character keys are stored only as generic character-key activity rather than as the character entered. Your email address is not collected by this experiment application.</p>
     <p>The SONA survey code is used to connect your responses across the four parts and to grant participation credit. Access to the research data is restricted to the study team.</p>
     <p>You may withdraw your consent for future processing by contacting <a href="mailto:nils.ness@tum.de">nils.ness@tum.de</a>. Withdrawal does not affect processing that was lawful before the withdrawal.</p>
     <p>Under the applicable legal requirements, you may have rights to access, rectification, erasure, restriction of processing, objection, and data portability, as well as a right to lodge a complaint with the competent data-protection authority. Contact the researcher or the university data-protection officer with questions.</p>

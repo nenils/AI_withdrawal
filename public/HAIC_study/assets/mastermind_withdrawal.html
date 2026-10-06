@@ -105,6 +105,8 @@
     var selectedColor = COLORS[0];
     var aiSuggestion = null;
     var pendingEvents = [];
+    var eventSequence = 0;
+    var eventFlushInFlight = false;
     var lastMouseAt = 0;
     var lastSupportPhase = null;
 
@@ -112,25 +114,87 @@
     function now() { return new Date().toISOString(); }
     function completionCode() { return "MM-SESSION-" + partNumber + "-COMPLETE"; }
     function event(type, data) {
+      if (!participantId) return;
+      var eventData = data || {};
+      eventData.sequence = ++eventSequence;
       pendingEvents.push({
         type: type,
-        data: data || {},
+        data: eventData,
         timestamp: now(),
         sessionNumber: state ? state.currentSession : 1,
         roundNumber: state && state.game ? state.game.round : null
       });
-      if (pendingEvents.length >= 40) flushEvents();
+      if (pendingEvents.length > 10000) pendingEvents.splice(0, pendingEvents.length - 10000);
+      if (pendingEvents.length >= 25) flushEvents();
     }
     function flushEvents(useBeacon) {
       if (!participantId || !pendingEvents.length) return;
       var batch = pendingEvents.splice(0, 500);
       var body = JSON.stringify({ participantId: participantId, events: batch });
       if (useBeacon && navigator.sendBeacon) {
-        navigator.sendBeacon("/api/withdrawal/events", new Blob([body], {type:"application/json"}));
+        if (!navigator.sendBeacon("/api/withdrawal/events", new Blob([body], {type:"application/json"}))) {
+          pendingEvents = batch.concat(pendingEvents);
+        }
         return;
       }
+      if (eventFlushInFlight) {
+        pendingEvents = batch.concat(pendingEvents);
+        return;
+      }
+      eventFlushInFlight = true;
       fetch("/api/withdrawal/events", { method:"POST", headers:{"Content-Type":"application/json"}, body:body, keepalive:true })
-        .catch(function () { pendingEvents = batch.concat(pendingEvents); });
+        .then(function (response) {
+          if (!response.ok) throw new Error("Tracking upload failed");
+        })
+        .catch(function () { pendingEvents = batch.concat(pendingEvents); })
+        .finally(function () {
+          eventFlushInFlight = false;
+          if (pendingEvents.length >= 25) flushEvents();
+        });
+    }
+    function targetLabel(target) {
+      if (!(target instanceof Element)) return "";
+      var label = target.tagName.toLowerCase();
+      if (target.id) return (label + "#" + target.id).slice(0, 120);
+      if (target.classList && target.classList.length) label += "." + Array.from(target.classList).slice(0, 2).join(".");
+      return label.slice(0, 120);
+    }
+    function pointerData(e, includeTarget) {
+      var width = Math.max(window.innerWidth, 1);
+      var height = Math.max(window.innerHeight, 1);
+      var data = {
+        x: Math.round(e.clientX),
+        y: Math.round(e.clientY),
+        xRatio: Number((e.clientX / width).toFixed(4)),
+        yRatio: Number((e.clientY / height).toFixed(4)),
+        viewportWidth: width,
+        viewportHeight: height,
+        pointerType: e.pointerType || "mouse",
+        button: e.button,
+        buttons: e.buttons
+      };
+      if (includeTarget) data.target = targetLabel(e.target);
+      return data;
+    }
+    function keyboardData(e) {
+      var category = "other";
+      var action = null;
+      if (["Shift", "Control", "Alt", "Meta"].indexOf(e.key) >= 0) category = "modifier";
+      else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].indexOf(e.key) >= 0) { category = "navigation"; action = e.key; }
+      else if (["Backspace", "Delete", "Insert"].indexOf(e.key) >= 0) { category = "editing"; action = e.key; }
+      else if (["Enter", "Escape", "Tab", " "].indexOf(e.key) >= 0) { category = "action"; action = e.key === " " ? "Space" : e.key; }
+      else if (/^F\d{1,2}$/.test(e.key)) { category = "function"; action = e.key; }
+      else if (e.key && e.key.length === 1) category = "character";
+      return {
+        category: category,
+        action: action,
+        repeat: e.repeat,
+        altKey: e.altKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+        target: targetLabel(e.target)
+      };
     }
     function api(path, payload) {
       return fetch(path, {
@@ -366,12 +430,23 @@
     el("clearGuess").onclick = function () { currentGuess=[null,null,null,null]; renderGuess(); event("guessCleared"); };
     el("askAI").onclick = function () { requestAI(false); };
     el("applyAI").onclick = function () { applyAI(false); };
-    document.addEventListener("click", function (e) { event("click", {x:e.clientX, y:e.clientY, target:e.target && (e.target.id || e.target.className || e.target.tagName)}); });
-    document.addEventListener("mousemove", function (e) { if (Date.now()-lastMouseAt < 250) return; lastMouseAt=Date.now(); event("mouseMove", {x:e.clientX,y:e.clientY}); });
-    document.addEventListener("keydown", function (e) { event("keyDown", {key:e.key, code:e.code}); });
+    document.addEventListener("pointerdown", function (e) { event("mouseDown", pointerData(e, true)); }, {passive:true});
+    document.addEventListener("pointerup", function (e) { event("mouseUp", pointerData(e, true)); }, {passive:true});
+    document.addEventListener("click", function (e) { event("click", pointerData(e, true)); }, {passive:true});
+    document.addEventListener("pointermove", function (e) {
+      if (Date.now() - lastMouseAt < 100) return;
+      lastMouseAt = Date.now();
+      event("mouseMove", pointerData(e, false));
+    }, {passive:true});
+    document.addEventListener("keydown", function (e) { event("keyDown", keyboardData(e)); });
+    document.addEventListener("keyup", function (e) { event("keyUp", keyboardData(e)); });
+    window.addEventListener("focus", function () { event("windowFocus"); });
+    window.addEventListener("blur", function () { event("windowBlur"); flushEvents(); });
+    window.addEventListener("resize", function () { event("windowResize", {width:window.innerWidth, height:window.innerHeight}); });
+    window.addEventListener("scroll", function () { event("scroll", {x:window.scrollX, y:window.scrollY}); }, {passive:true});
     document.addEventListener("visibilitychange", function () { event("visibilityChanged", {hidden:document.hidden}); if (document.hidden) flushEvents(); });
     window.addEventListener("beforeunload", function () { event("pageUnloaded"); flushEvents(true); });
-    setInterval(flushEvents, 15000);
+    setInterval(flushEvents, 5000);
 
     Revisit.onDataReceive(function (data) {
       participantId = data.__revisit && data.__revisit.participantId;

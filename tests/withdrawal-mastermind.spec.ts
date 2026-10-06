@@ -24,12 +24,14 @@ type StudyState = {
   };
 };
 
-async function openGame(page: Page, state: StudyState) {
+async function openGame(page: Page, state: StudyState, uploadedEvents?: Array<Record<string, unknown>>) {
   await page.route('**/api/withdrawal/state', async (route) => {
     await route.fulfill({ json: state });
   });
   await page.route('**/api/withdrawal/events', async (route) => {
-    await route.fulfill({ json: { accepted: 1 } });
+    const payload = route.request().postDataJSON();
+    uploadedEvents?.push(...payload.events);
+    await route.fulfill({ json: { accepted: payload.events.length } });
   });
   await page.goto('/HAIC_study/assets/mastermind_withdrawal.html?id=test-frame');
   await page.evaluate(({ currentSession }) => {
@@ -121,4 +123,25 @@ test('shows and records a session confirmation code after four games', async ({ 
 
   await expect(page.getByText('MM-SESSION-1-COMPLETE', { exact: true })).toBeVisible();
   await expect(page.getByText('This session\'s games are complete', { exact: true })).toBeVisible();
+});
+
+test('uploads mouse and privacy-preserving keyboard activity', async ({ page }) => {
+  const uploadedEvents: Array<Record<string, unknown>> = [];
+  await openGame(page, activeState({}), uploadedEvents);
+
+  await page.mouse.move(140, 180);
+  await page.getByRole('button', { name: 'Clear' }).click();
+  await page.keyboard.press('a');
+  await page.keyboard.press('ArrowLeft');
+
+  await expect.poll(() => uploadedEvents.length, { timeout: 7000 }).toBeGreaterThan(0);
+  const mouseEvents = uploadedEvents.filter((entry) => ['mouseMove', 'mouseDown', 'mouseUp', 'click'].includes(String(entry.type)));
+  const keyEvents = uploadedEvents.filter((entry) => ['keyDown', 'keyUp'].includes(String(entry.type)));
+
+  expect(mouseEvents.length).toBeGreaterThan(0);
+  expect(keyEvents.length).toBeGreaterThanOrEqual(4);
+  expect(keyEvents.some((entry) => (entry.data as { category?: string }).category === 'character')).toBeTruthy();
+  expect(keyEvents.some((entry) => (entry.data as { action?: string }).action === 'ArrowLeft')).toBeTruthy();
+  expect(JSON.stringify(keyEvents)).not.toContain('"key":"a"');
+  expect(JSON.stringify(keyEvents)).not.toContain('"code":"KeyA"');
 });
