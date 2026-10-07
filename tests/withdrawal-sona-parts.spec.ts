@@ -61,6 +61,18 @@ test('shared SONA assets and component library are published', async ({ request 
   }
 });
 
+test('demographics include student and non-employment categories', async ({ request }) => {
+  const response = await request.get('/libraries/haic-withdrawal/config.json');
+  expect(response.ok()).toBeTruthy();
+  const library = await response.json();
+  const jobSector = library.components.demographics.response.find(
+    (item: { id: string }) => item.id === 'demographics-job-sector',
+  );
+
+  expect(jobSector.options).toContain('Student');
+  expect(jobSector.options).toContain('Not currently employed');
+});
+
 for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
   test(`SONA Part ${partNumber} route renders`, async ({ page }) => {
     await page.route('**/api/withdrawal/state', async (route) => {
