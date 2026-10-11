@@ -28,9 +28,6 @@
     "haic-withdrawal"
   ],
   "components": {
-    "willingness-part": {
-      "baseComponent": "$haic-withdrawal.components.control-trust-willingness"
-    },
     "mastermind-part": {
       "baseComponent": "$haic-withdrawal.components.mastermind",
       "parameters": {
