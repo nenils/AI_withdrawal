@@ -27,27 +27,41 @@ components.mastermind = {
   sidebarWidth: 320,
 };
 
-components['session-state'] = {
+components.cognitive_responsibility.responseOrder = 'fixed';
+components.cognitive_responsibility.instruction = '## Your experience in this session\nPlease answer with the four Mastermind games you just completed in mind.';
+components.Ownership.instruction = '## Your guesses and decisions\nThink about the four Mastermind games you just completed, your guesses, decisions, and outcomes. Indicate how strongly you agree or disagree with each statement.';
+components['control-trust-willingness'].responseOrder = 'fixed';
+components['control-trust-willingness'].instruction = '## Willingness to depend\nThink about the AI support you experienced during this study. Indicate how strongly you agree or disagree with each statement.';
+
+components['nasa-tlx'] = {
   type: 'questionnaire',
-  description: 'Brief repeated measures for the session just completed.',
+  description: 'Raw NASA-TLX: six unweighted workload ratings on a 0-100 scale.',
   responseDividers: true,
-  responseOrder: 'random',
+  responseOrder: 'fixed',
   instructionLocation: 'aboveStimulus',
-  instruction: '## Your experience in this session\nPlease answer with the four games you just completed in mind.',
+  instruction: '## Workload in this session\nRate your experience across the four Mastermind games you just completed.',
   response: [
-    ['state-responsibility', 'Thinking through the task was mainly my responsibility.'],
-    ['state-mental-effort', 'Solving the games required a great deal of mental effort.'],
-    ['state-confidence-independent', 'I feel confident that I could solve similar games without AI support.'],
-    ['state-ownership', 'The guesses made during this session felt like my own decisions.'],
-    ['state-prefer-ai', 'For another session of this task, I would prefer to have AI support available.'],
-  ].map(([id, prompt]) => ({
-    id,
+    ['mental-demand', 'Mental Demand', 'How mentally demanding was the task?'],
+    ['physical-demand', 'Physical Demand', 'How physically demanding was the task?'],
+    ['temporal-demand', 'Temporal Demand', 'How hurried or rushed was the pace of the task?'],
+    ['performance', 'Performance', 'How successful were you in accomplishing what you were asked to do?'],
+    ['effort', 'Effort', 'How hard did you have to work to accomplish your level of performance?'],
+    ['frustration', 'Frustration', 'How insecure, discouraged, irritated, stressed, and annoyed were you?'],
+  ].map(([dimension, prompt, secondaryText]) => ({
+    id: `nasa-tlx-${dimension}`,
     prompt,
+    secondaryText,
     required: true,
-    type: 'likert',
-    leftLabel: 'Strongly disagree',
-    rightLabel: 'Strongly agree',
-    numItems: 7,
+    type: 'slider',
+    tlxStyle: true,
+    withBar: false,
+    step: 5,
+    spacing: 5,
+    startingValue: 50,
+    options: [
+      { label: dimension === 'performance' ? 'Perfect' : 'Very Low', value: 0 },
+      { label: dimension === 'performance' ? 'Failure' : 'Very High', value: 100 },
+    ],
   })),
   style: { width: '75%', maxWidth: '960px', margin: '0 auto' },
 };
@@ -70,7 +84,7 @@ components['sona-completion'] = {
 
 const library = {
   $schema: 'https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/LibraryConfigSchema.json',
-  description: 'Shared components for the four-part SONA AI-support withdrawal study.',
+  description: 'Shared components for the four-part SONA Mastermind study.',
   components,
   sequences: {},
 };
@@ -79,28 +93,25 @@ const libraryDir = path.join(root, 'public/libraries/haic-withdrawal');
 fs.mkdirSync(libraryDir, { recursive: true });
 fs.writeFileSync(path.join(libraryDir, 'config.json'), `${JSON.stringify(library, null, 2)}\n`);
 
-const shortMeasures = ['$haic-withdrawal.components.session-state'];
-const oneTimeMeasures = [
-  '$haic-withdrawal.components.control-mails-short',
-  '$haic-withdrawal.components.control-game-llm-experience',
-  '$haic-withdrawal.components.demographics',
+const repeatedMeasures = [
+  '$haic-withdrawal.components.cognitive_responsibility',
+  '$haic-withdrawal.components.nasa-tlx',
 ];
 const finalMeasures = [
-  '$haic-withdrawal.components.cognitive_responsibility',
-  '$haic-withdrawal.components.cognitive-load-intrinsic',
-  '$haic-withdrawal.components.cognitive-load-extraneous',
-  '$haic-withdrawal.components.cognitive-load-germane',
-  '$haic-withdrawal.components.common-method-bias',
+  {
+    id: 'willingness-by-condition',
+    order: 'dynamic',
+    functionPath: 'haic-withdrawal/willingness.ts',
+  },
   '$haic-withdrawal.components.Ownership',
-  '$haic-withdrawal.components.control-trust-willingness',
 ];
 
 for (let part = 1; part <= 4; part += 1) {
   const partComponents = part === 1
     ? ['$haic-withdrawal.components.introduction', '$haic-withdrawal.components.game-tutorial-video']
     : [];
-  partComponents.push('mastermind-part', ...shortMeasures);
-  if (part === 1) partComponents.push(...oneTimeMeasures);
+  partComponents.push('mastermind-part', ...repeatedMeasures);
+  if (part === 1) partComponents.push('$haic-withdrawal.components.demographics');
   if (part === 4) partComponents.push(...finalMeasures);
   partComponents.push('sona-completion-part');
 
@@ -108,9 +119,9 @@ for (let part = 1; part <= 4; part += 1) {
     $schema: 'https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json',
     studyMetadata: {
       ...source.studyMetadata,
-      title: `AI Support Withdrawal in Mastermind - Part ${part}`,
-      version: `v-4-sona-part-${part}`,
-      description: `Part ${part} of the four-part SONA experiment on the introduction and withdrawal of AI support.`,
+      title: `Longitudinal Mastermind Study - Part ${part}`,
+      version: `v-5-sona-part-${part}`,
+      description: `Part ${part} of the four-part SONA Mastermind study.`,
     },
     uiConfig: {
       ...source.uiConfig,
@@ -122,6 +133,11 @@ for (let part = 1; part <= 4; part += 1) {
     },
     importedLibraries: ['haic-withdrawal'],
     components: {
+      ...(part === 4 ? {
+        'willingness-part': {
+          baseComponent: '$haic-withdrawal.components.control-trust-willingness',
+        },
+      } : {}),
       'mastermind-part': {
         baseComponent: '$haic-withdrawal.components.mastermind',
         parameters: { partNumber: part },

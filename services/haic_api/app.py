@@ -237,7 +237,8 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
         )
         already_credited = payload.partNumber in (record.get("credited_parts") or [])
         if not already_credited:
-            grant_sona_credit(payload.partNumber, payload.participantId)
+            if not payload.participantId.startswith("debug-"):
+                grant_sona_credit(payload.partNumber, payload.participantId)
             record = WITHDRAWAL_STORE.mark_part_credited(
                 payload.participantId,
                 payload.partNumber,

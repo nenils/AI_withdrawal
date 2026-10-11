@@ -31,13 +31,36 @@ For each part, copy SONA's **server-side** External Credit Granting URL into the
 
 At the end of a part, the final reVISit component asks the API to grant SONA credit. The API advances the longitudinal record only after SONA accepts the request. Retrying is idempotent: a part already recorded as credited is not granted twice.
 
-Do not enable `SONA_CREDIT_TEST_MODE` on the production VM. Use a fake SONA participant account and invitation code to test all four URLs and credit events before launch.
+Do not enable `SONA_CREDIT_TEST_MODE` on the production VM. Use a fake SONA participant account and invitation code to test credit integration before launch.
+
+### Administrator Debug Links
+
+From the VM's `~/study` directory, create a fresh test participant directly in any session:
+
+```sh
+docker compose --env-file .env.docker -f docker-compose.yml -f docker-compose.supabase-cloud.yml exec haic-api python debug_participant.py --session 4 --condition advisor
+```
+
+The command prints a participant URL that starts at game 1 of the requested session without prior SONA participation or waiting. Use sessions 1-4 and conditions `control`, `advisor`, or `judge`. Repeat to get a fresh ID and restart a test. The command requires administrator shell access; there is no public unlock endpoint or participant-facing debug control. Test records use unique `debug-` IDs, never call SONA for credit, and still save game, interaction, and questionnaire data. Exclude these IDs from research analyses. These links test the experiment itself, not SONA timing or real credit integration.
 
 ## Measurement schedule
 
-- Part 1: study introduction, tutorial, Session 1, short repeated state measures, prior AI/game experience, and demographics.
-- Parts 2-3: the current Mastermind session and short repeated state measures.
-- Part 4: Session 4, short repeated state measures, the established full outcome scales, final SONA credit, and study completion.
+- Part 1: study introduction, tutorial, Session 1, cognitive responsibility, NASA-TLX, and demographics.
+- Parts 2-3: the current Mastermind session, cognitive responsibility, and NASA-TLX.
+- Part 4: Session 4, cognitive responsibility, NASA-TLX, willingness to depend (Advisor/Judge only), ownership, final SONA credit, and study completion.
+
+Cognitive responsibility uses the same four items in a fixed order and a
+seven-point agreement scale in all sessions. NASA-TLX uses all six dimensions
+in a fixed order, rated from 0 to 100 in steps of five. This is Raw TLX without
+pairwise weighting: the overall score is the mean of the six ratings.
+Performance is anchored at 0 = Perfect and 100 = Failure; it is already oriented
+toward higher workload and must not be reversed before averaging.
+All repeated instructions refer to the four games of the session just completed.
+Ownership uses the existing seven items with an AI-neutral instruction.
+Willingness to depend retains the existing four AI-specific items, referring to
+support experienced during the study, and is omitted for the control condition.
+The previous short state battery, SUS, prior AI/game experience, Klepsch cognitive
+load scales, and color marker items are no longer scheduled.
 
 The separate Mastermind-familiarity screener and recruitment workflow remain outside this application.
 

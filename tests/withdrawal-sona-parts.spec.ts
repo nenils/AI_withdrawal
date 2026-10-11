@@ -44,11 +44,63 @@ test('four unique SONA study configs are published', async ({ request }) => {
     expect(config.components['sona-completion-part'].parameters.partNumber).toBe(partNumber);
     expect(config.sequence.components.at(-1)).toBe('sona-completion-part');
 
-    const sequence = config.sequence.components as string[];
-    expect(sequence.includes('$haic-withdrawal.components.demographics')).toBe(partNumber === 1);
-    expect(sequence.includes('$haic-withdrawal.components.sus')).toBe(partNumber === 3);
+    const sequence = config.sequence.components.map((component: string | { id: string }) => (
+      typeof component === 'string' ? component : component.id
+    ));
+    expect(sequence).toEqual([
+      ...(partNumber === 1 ? [
+        '$haic-withdrawal.components.introduction',
+        '$haic-withdrawal.components.game-tutorial-video',
+      ] : []),
+      'mastermind-part',
+      '$haic-withdrawal.components.cognitive_responsibility',
+      '$haic-withdrawal.components.nasa-tlx',
+      ...(partNumber === 1 ? ['$haic-withdrawal.components.demographics'] : []),
+      ...(partNumber === 4 ? ['willingness-by-condition', '$haic-withdrawal.components.Ownership'] : []),
+      'sona-completion-part',
+    ]);
   }
 });
+
+for (const condition of ['control', 'advisor', 'judge']) {
+  test(`Part 4 questionnaire flow for ${condition}`, async ({ page }) => {
+    await page.route('**/api/withdrawal/state', async (route) => {
+      await route.fulfill({ json: {
+        ...stateForPart(4), condition, partGameComplete: true,
+      } });
+    });
+    await page.route('**/api/withdrawal/events', async (route) => {
+      await route.fulfill({ json: { accepted: route.request().postDataJSON().events.length } });
+    });
+    await page.goto(`/HAIC_part_4/?sona_id=questionnaire-${condition}`);
+    await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
+    await page.getByRole('textbox').fill('MM-SESSION-4-COMPLETE');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText('Thinking through the task was mainly my responsibility.')).toBeVisible();
+    for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) {
+      await radio.click();
+    }
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByRole('slider')).toHaveCount(6);
+    await expect(page.getByText('Perfect', { exact: true })).toBeVisible();
+    await expect(page.getByText('Failure', { exact: true })).toBeVisible();
+    for (const slider of await page.getByRole('slider').all()) {
+      await slider.focus();
+      await slider.press('ArrowRight');
+    }
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    if (condition !== 'control') {
+      await expect(page.getByRole('heading', { name: 'Willingness to depend' })).toBeVisible();
+      for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) {
+        await radio.click();
+      }
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+    }
+    await expect(page.getByRole('heading', { name: 'Your guesses and decisions' })).toBeVisible();
+    await expect(page.getByText('This was my task-solving process.')).toBeVisible();
+    await expect(page.getByText(/interaction with the AI system/i)).toHaveCount(0);
+  });
+}
 
 test('shared SONA assets and component library are published', async ({ request }) => {
   for (const path of [
