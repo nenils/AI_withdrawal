@@ -27,30 +27,31 @@ components.mastermind = {
   sidebarWidth: 320,
 };
 
-components.cognitive_responsibility.responseOrder = 'fixed';
+components.cognitive_responsibility.responseOrder = 'random';
+components.demographics.responseOrder = 'fixed';
+components.Ownership.responseOrder = 'random';
 components.cognitive_responsibility.instruction = '## Your experience in this session\nPlease answer with the four Mastermind games you just completed in mind.';
 components.Ownership.instruction = '## Your guesses and decisions\nThink about the four Mastermind games you just completed, your guesses, decisions, and outcomes. Indicate how strongly you agree or disagree with each statement.';
-components['control-trust-willingness'].responseOrder = 'fixed';
+components['control-trust-willingness'].responseOrder = 'random';
 components['control-trust-willingness'].instruction = '## Willingness to depend\nThink about the AI support you experienced during this study. Indicate how strongly you agree or disagree with each statement.';
 
 components['nasa-tlx'] = {
   type: 'questionnaire',
   description: 'Raw NASA-TLX: six unweighted workload ratings on a 0-100 scale.',
   responseDividers: true,
-  responseOrder: 'fixed',
+  responseOrder: 'random',
   instructionLocation: 'aboveStimulus',
   instruction: '## Workload in this session\nRate your experience across the four Mastermind games you just completed.',
   response: [
-    ['mental-demand', 'Mental Demand', 'How mentally demanding was the task?'],
-    ['physical-demand', 'Physical Demand', 'How physically demanding was the task?'],
-    ['temporal-demand', 'Temporal Demand', 'How hurried or rushed was the pace of the task?'],
-    ['performance', 'Performance', 'How successful were you in accomplishing what you were asked to do?'],
-    ['effort', 'Effort', 'How hard did you have to work to accomplish your level of performance?'],
-    ['frustration', 'Frustration', 'How insecure, discouraged, irritated, stressed, and annoyed were you?'],
-  ].map(([dimension, prompt, secondaryText]) => ({
+    ['mental-demand', 'How mentally demanding was the task?'],
+    ['physical-demand', 'How physically demanding was the task?'],
+    ['temporal-demand', 'How hurried or rushed was the pace of the task?'],
+    ['performance', 'How successful were you in accomplishing what you were asked to do?'],
+    ['effort', 'How hard did you have to work to accomplish your level of performance?'],
+    ['frustration', 'How insecure, discouraged, irritated, stressed, and annoyed were you?'],
+  ].map(([dimension, question]) => ({
     id: `nasa-tlx-${dimension}`,
-    prompt,
-    secondaryText,
+    prompt: question,
     required: true,
     type: 'slider',
     tlxStyle: true,

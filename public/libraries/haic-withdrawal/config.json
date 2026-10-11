@@ -196,13 +196,14 @@
         "width": "75%",
         "maxWidth": "960px",
         "margin": "0 auto"
-      }
+      },
+      "responseOrder": "fixed"
     },
     "control-trust-willingness": {
       "type": "questionnaire",
       "description": "Control variables: McKnight trusting beliefs — Willingness to depend.",
       "responseDividers": true,
-      "responseOrder": "fixed",
+      "responseOrder": "random",
       "response": [
         {
           "id": "willingness-to-depend-1",
@@ -376,7 +377,7 @@
       "type": "questionnaire",
       "description": "Please answer the following questions about your experience during the task.",
       "responseDividers": true,
-      "responseOrder": "fixed",
+      "responseOrder": "random",
       "response": [
         {
           "id": "cr1",
@@ -498,7 +499,8 @@
         "width": "75%",
         "maxWidth": "960px",
         "margin": "0 auto"
-      }
+      },
+      "responseOrder": "random"
     },
     "cognitive-load-intrinsic": {
       "type": "questionnaire",
@@ -739,14 +741,13 @@
       "type": "questionnaire",
       "description": "Raw NASA-TLX: six unweighted workload ratings on a 0-100 scale.",
       "responseDividers": true,
-      "responseOrder": "fixed",
+      "responseOrder": "random",
       "instructionLocation": "aboveStimulus",
       "instruction": "## Workload in this session\nRate your experience across the four Mastermind games you just completed.",
       "response": [
         {
           "id": "nasa-tlx-mental-demand",
-          "prompt": "Mental Demand",
-          "secondaryText": "How mentally demanding was the task?",
+          "prompt": "How mentally demanding was the task?",
           "required": true,
           "type": "slider",
           "tlxStyle": true,
@@ -767,8 +768,7 @@
         },
         {
           "id": "nasa-tlx-physical-demand",
-          "prompt": "Physical Demand",
-          "secondaryText": "How physically demanding was the task?",
+          "prompt": "How physically demanding was the task?",
           "required": true,
           "type": "slider",
           "tlxStyle": true,
@@ -789,8 +789,7 @@
         },
         {
           "id": "nasa-tlx-temporal-demand",
-          "prompt": "Temporal Demand",
-          "secondaryText": "How hurried or rushed was the pace of the task?",
+          "prompt": "How hurried or rushed was the pace of the task?",
           "required": true,
           "type": "slider",
           "tlxStyle": true,
@@ -811,8 +810,7 @@
         },
         {
           "id": "nasa-tlx-performance",
-          "prompt": "Performance",
-          "secondaryText": "How successful were you in accomplishing what you were asked to do?",
+          "prompt": "How successful were you in accomplishing what you were asked to do?",
           "required": true,
           "type": "slider",
           "tlxStyle": true,
@@ -833,8 +831,7 @@
         },
         {
           "id": "nasa-tlx-effort",
-          "prompt": "Effort",
-          "secondaryText": "How hard did you have to work to accomplish your level of performance?",
+          "prompt": "How hard did you have to work to accomplish your level of performance?",
           "required": true,
           "type": "slider",
           "tlxStyle": true,
@@ -855,8 +852,7 @@
         },
         {
           "id": "nasa-tlx-frustration",
-          "prompt": "Frustration",
-          "secondaryText": "How insecure, discouraged, irritated, stressed, and annoyed were you?",
+          "prompt": "How insecure, discouraged, irritated, stressed, and annoyed were you?",
           "required": true,
           "type": "slider",
           "tlxStyle": true,

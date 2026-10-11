@@ -49,9 +49,14 @@ The command prints a participant URL that starts at game 1 of the requested sess
 - Parts 2-3: the current Mastermind session, cognitive responsibility, and NASA-TLX.
 - Part 4: Session 4, cognitive responsibility, NASA-TLX, willingness to depend (Advisor/Judge only), ownership, final SONA credit, and study completion.
 
-Cognitive responsibility uses the same four items in a fixed order and a
-seven-point agreement scale in all sessions. NASA-TLX uses all six dimensions
-in a fixed order, rated from 0 to 100 in steps of five. This is Raw TLX without
+Cognitive responsibility uses the same four items and a seven-point agreement
+scale in all sessions. Items within cognitive responsibility, NASA-TLX,
+willingness to depend, and ownership are independently randomized for each
+participant and session using reVISit's stored form order. Reloading a session
+preserves its assigned order. Demographics and questionnaire block order remain
+fixed; scale endpoints and answer options are not shuffled.
+NASA-TLX displays the six questions without dimension headings,
+rated from 0 to 100 in steps of five. This is Raw TLX without
 pairwise weighting: the overall score is the mean of the six ratings.
 Performance is anchored at 0 = Perfect and 100 = Failure; it is already oriented
 toward higher workload and must not be reversed before averaging.

@@ -84,6 +84,10 @@ for (const condition of ['control', 'advisor', 'judge']) {
     }
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByRole('slider')).toHaveCount(6);
+    await expect(page.getByText('How mentally demanding was the task?', { exact: false })).toBeVisible();
+    for (const dimension of ['Mental Demand', 'Physical Demand', 'Temporal Demand', 'Performance', 'Effort', 'Frustration']) {
+      await expect(page.getByText(dimension, { exact: true })).toHaveCount(0);
+    }
     await expect(page.getByText('Perfect', { exact: true })).toBeVisible();
     await expect(page.getByText('Failure', { exact: true })).toBeVisible();
     for (const slider of await page.getByRole('slider').all()) {
@@ -125,6 +129,15 @@ test('demographics include student and non-employment categories', async ({ requ
 
   expect(jobSector.options).toContain('Student');
   expect(jobSector.options).toContain('Not currently employed');
+});
+
+test('all scheduled scale items are randomized except demographics', async ({ request }) => {
+  const response = await request.get('/libraries/haic-withdrawal/config.json');
+  const { components } = await response.json();
+  for (const name of ['cognitive_responsibility', 'nasa-tlx', 'control-trust-willingness', 'Ownership']) {
+    expect(components[name].responseOrder).toBe('random');
+  }
+  expect(components.demographics.responseOrder).toBe('fixed');
 });
 
 for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
