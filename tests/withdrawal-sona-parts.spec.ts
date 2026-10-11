@@ -42,6 +42,7 @@ test('four unique SONA study configs are published', async ({ request }) => {
     expect(config.studyMetadata.description).not.toMatch(/condition|withdraw|support/i);
     expect(config.components['mastermind-part'].parameters.partNumber).toBe(partNumber);
     expect(config.components['sona-completion-part'].parameters.partNumber).toBe(partNumber);
+    expect(config.components).not.toHaveProperty('willingness-part');
     expect(config.sequence.components.at(-1)).toBe('sona-completion-part');
 
     const sequence = config.sequence.components.map((component: string | { id: string }) => (
@@ -73,6 +74,7 @@ for (const condition of ['control', 'advisor', 'judge']) {
       await route.fulfill({ json: { accepted: route.request().postDataJSON().events.length } });
     });
     await page.goto(`/HAIC_part_4/?sona_id=questionnaire-${condition}`);
+    await expect(page.getByText(/Component.*willingness-part.*not used deterministically/)).toHaveCount(0);
     await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
     await page.getByRole('textbox').fill('MM-SESSION-4-COMPLETE');
     await page.getByRole('button', { name: 'Next', exact: true }).click();

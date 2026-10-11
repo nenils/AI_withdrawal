@@ -8,5 +8,5 @@ export default function willingness({ answers, currentBlock, currentStep }: Jump
 
   const game = Object.values(answers).find((value) => value.componentName === 'mastermind-part');
   const condition = game?.answer.mastermindGame_condition;
-  return { component: condition === 'advisor' || condition === 'judge' ? 'willingness-part' : null };
+  return { component: condition === 'advisor' || condition === 'judge' ? '$haic-withdrawal.components.control-trust-willingness' : null };
 }

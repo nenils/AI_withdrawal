@@ -133,11 +133,6 @@ for (let part = 1; part <= 4; part += 1) {
     },
     importedLibraries: ['haic-withdrawal'],
     components: {
-      ...(part === 4 ? {
-        'willingness-part': {
-          baseComponent: '$haic-withdrawal.components.control-trust-willingness',
-        },
-      } : {}),
       'mastermind-part': {
         baseComponent: '$haic-withdrawal.components.mastermind',
         parameters: { partNumber: part },
