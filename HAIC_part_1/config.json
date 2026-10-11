@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
     "title": "Longitudinal Mastermind Study - Part 1",
-    "version": "v-4-sona-part-1",
+    "version": "v-5-sona-part-1",
     "authors": [
       "Nils Ness"
     ],
@@ -47,9 +47,8 @@
       "$haic-withdrawal.components.introduction",
       "$haic-withdrawal.components.game-tutorial-video",
       "mastermind-part",
-      "$haic-withdrawal.components.session-state",
-      "$haic-withdrawal.components.control-mails-short",
-      "$haic-withdrawal.components.control-game-llm-experience",
+      "$haic-withdrawal.components.cognitive_responsibility",
+      "$haic-withdrawal.components.nasa-tlx",
       "$haic-withdrawal.components.demographics",
       "sona-completion-part"
     ]

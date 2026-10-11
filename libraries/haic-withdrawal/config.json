@@ -202,7 +202,7 @@
       "type": "questionnaire",
       "description": "Control variables: McKnight trusting beliefs — Willingness to depend.",
       "responseDividers": true,
-      "responseOrder": "random",
+      "responseOrder": "fixed",
       "response": [
         {
           "id": "willingness-to-depend-1",
@@ -242,7 +242,7 @@
         }
       ],
       "instructionLocation": "aboveStimulus",
-      "instruction": "## Page 6\n Please select the option describes your perception.",
+      "instruction": "## Willingness to depend\nThink about the AI support you experienced during this study. Indicate how strongly you agree or disagree with each statement.",
       "style": {
         "width": "75%",
         "maxWidth": "960px",
@@ -376,7 +376,7 @@
       "type": "questionnaire",
       "description": "Please answer the following questions about your experience during the task.",
       "responseDividers": true,
-      "responseOrder": "random",
+      "responseOrder": "fixed",
       "response": [
         {
           "id": "cr1",
@@ -416,7 +416,7 @@
         }
       ],
       "instructionLocation": "aboveStimulus",
-      "instruction": "## Page 1\n Please select the option that describes your perception.",
+      "instruction": "## Your experience in this session\nPlease answer with the four Mastermind games you just completed in mind.",
       "style": {
         "width": "75%",
         "maxWidth": "960px",
@@ -493,7 +493,7 @@
         }
       ],
       "instructionLocation": "aboveStimulus",
-      "instruction": "## Page 5\nThink about the Mastermind task you just completed, your guesses, decisions, and the interaction with the AI system. Indicate the degree to which you personally agree or disagree with the following statements.",
+      "instruction": "## Your guesses and decisions\nThink about the four Mastermind games you just completed, your guesses, decisions, and outcomes. Indicate how strongly you agree or disagree with each statement.",
       "style": {
         "width": "75%",
         "maxWidth": "960px",
@@ -735,162 +735,145 @@
       "withSidebar": true,
       "sidebarWidth": 320
     },
-    "session-state": {
+    "nasa-tlx": {
       "type": "questionnaire",
-      "description": "Brief repeated measures for the session just completed.",
+      "description": "Raw NASA-TLX: six unweighted workload ratings on a 0-100 scale.",
       "responseDividers": true,
-      "responseOrder": "random",
+      "responseOrder": "fixed",
       "instructionLocation": "aboveStimulus",
-      "instruction": "## Your experience in this session\nPlease answer with the four games you just completed in mind.",
+      "instruction": "## Workload in this session\nRate your experience across the four Mastermind games you just completed.",
       "response": [
         {
-          "id": "state-responsibility",
-          "prompt": "Thinking through the task was mainly my responsibility.",
+          "id": "nasa-tlx-mental-demand",
+          "prompt": "Mental Demand",
+          "secondaryText": "How mentally demanding was the task?",
           "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 7
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
         },
         {
-          "id": "state-mental-effort",
-          "prompt": "Solving the games required a great deal of mental effort.",
+          "id": "nasa-tlx-physical-demand",
+          "prompt": "Physical Demand",
+          "secondaryText": "How physically demanding was the task?",
           "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 7
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
         },
         {
-          "id": "state-confidence-independent",
-          "prompt": "I feel confident that I could solve similar games independently.",
+          "id": "nasa-tlx-temporal-demand",
+          "prompt": "Temporal Demand",
+          "secondaryText": "How hurried or rushed was the pace of the task?",
           "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 7
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
         },
         {
-          "id": "state-ownership",
-          "prompt": "The guesses made during this session felt like my own decisions.",
+          "id": "nasa-tlx-performance",
+          "prompt": "Performance",
+          "secondaryText": "How successful were you in accomplishing what you were asked to do?",
           "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 7
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Perfect",
+              "value": 0
+            },
+            {
+              "label": "Failure",
+              "value": 100
+            }
+          ]
         },
         {
-          "id": "state-prefer-ai",
-          "prompt": "For another session of this task, I would prefer to have AI support available.",
+          "id": "nasa-tlx-effort",
+          "prompt": "Effort",
+          "secondaryText": "How hard did you have to work to accomplish your level of performance?",
           "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 7
-        }
-      ],
-      "style": {
-        "width": "75%",
-        "maxWidth": "960px",
-        "margin": "0 auto"
-      }
-    },
-    "sus": {
-      "type": "questionnaire",
-      "description": "System Usability Scale for the Mastermind study interface.",
-      "responseDividers": true,
-      "instructionLocation": "aboveStimulus",
-      "instruction": "## Usability of the study interface\nPlease indicate how strongly you agree or disagree with each statement about the system you used in this study.",
-      "response": [
-        {
-          "id": "sus-01-use-frequently",
-          "prompt": "I think that I would like to use this system frequently.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
         },
         {
-          "id": "sus-02-complex",
-          "prompt": "I found the system unnecessarily complex.",
+          "id": "nasa-tlx-frustration",
+          "prompt": "Frustration",
+          "secondaryText": "How insecure, discouraged, irritated, stressed, and annoyed were you?",
           "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-03-easy",
-          "prompt": "I thought the system was easy to use.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-04-technical-support",
-          "prompt": "I think that I would need the support of a technical person to be able to use this system.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-05-integrated",
-          "prompt": "I found the various functions in this system were well integrated.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-06-inconsistent",
-          "prompt": "I thought there was too much inconsistency in this system.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-07-learn-quickly",
-          "prompt": "I would imagine that most people would learn to use this system very quickly.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-08-cumbersome",
-          "prompt": "I found the system very cumbersome to use.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-09-confident",
-          "prompt": "I felt very confident using the system.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
-        },
-        {
-          "id": "sus-10-learn-before",
-          "prompt": "I needed to learn a lot of things before I could get going with this system.",
-          "required": true,
-          "type": "likert",
-          "leftLabel": "Strongly disagree",
-          "rightLabel": "Strongly agree",
-          "numItems": 5
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
         }
       ],
       "style": {
