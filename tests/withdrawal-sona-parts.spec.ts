@@ -154,6 +154,9 @@ for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
       await expect(page.getByRole('heading', { name: 'Mastermind Study', exact: true })).toBeVisible({ timeout: 15000 });
     } else {
       await expect(page.frameLocator('iframe').getByRole('heading', { name: 'Mastermind' })).toBeVisible({ timeout: 15000 });
+      await expect(page.locator('.responseBlock-sidebar').getByText('Feedback pegs', { exact: true })).toBeVisible();
+      await expect(page.locator('.responseBlock-sidebar').getByText(/A correct color in the correct position/)).toBeVisible();
+      await expect(page.locator('.responseBlock-sidebar').getByText(/A correct color in a different position/)).toBeVisible();
     }
     await expect(page.getByText(/error loading config/i)).toHaveCount(0);
   });

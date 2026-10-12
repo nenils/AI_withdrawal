@@ -15,12 +15,18 @@ components.mastermind = {
   path: 'HAIC_study/assets/mastermind_withdrawal.html',
   instructionLocation: 'aboveStimulus',
   description: 'Four complete Mastermind games for the current longitudinal study part.',
+  responseOrder: 'fixed',
   response: [{
     id: 'played-game',
     prompt: 'Complete all four games to continue.',
     required: true,
     type: 'shortText',
     location: 'sidebar',
+  }, {
+    id: 'peg-feedback-guide',
+    type: 'textOnly',
+    location: 'sidebar',
+    prompt: '**Feedback pegs**\n\n**Black peg:** A correct color in the correct position.\n\n**White peg:** A correct color in a different position.\n\nFeedback pegs do not indicate which positions they refer to.',
   }],
   style: { minHeight: '760px' },
   withSidebar: true,
