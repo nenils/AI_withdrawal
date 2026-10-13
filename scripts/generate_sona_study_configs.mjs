@@ -98,6 +98,20 @@ components['sona-completion'] = {
   withSidebar: false,
 };
 
+function withAttentionCheck(component, session, prompt, answer) {
+  const copy = structuredClone(component);
+  const id = `attention-check-session-${session}`;
+  copy.response.push({ id, prompt, type: 'likert', required: true, numItems: 7, start: 1, leftLabel: '1', rightLabel: '7' });
+  copy.correctAnswer = [{ id, answer: String(answer) }];
+  copy.provideFeedback = false;
+  return copy;
+}
+
+components.demographics = withAttentionCheck(components.demographics, 1, 'How many positions does the hidden code have? Answer on the 1-7 scale.', 4);
+components['cognitive-responsibility-session-2'] = withAttentionCheck(components.cognitive_responsibility, 2, 'For this item, please select 1.', 1);
+components['nasa-tlx-session-3'] = withAttentionCheck(components['nasa-tlx'], 3, 'How many colors are available to construct the code? Answer on the 1-7 scale.', 6);
+components.Ownership = withAttentionCheck(components.Ownership, 4, 'For this item, please select 7.', 7);
+
 const library = {
   $schema: 'https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/LibraryConfigSchema.json',
   description: 'Shared components for the four-part SONA Mastermind study.',
@@ -126,7 +140,12 @@ for (let part = 1; part <= 4; part += 1) {
   const partComponents = part === 1
     ? ['$haic-withdrawal.components.introduction', '$haic-withdrawal.components.game-tutorial-video']
     : [];
-  partComponents.push('mastermind-part', ...repeatedMeasures);
+  const sessionMeasures = repeatedMeasures.map((component) => {
+    if (part === 2 && component.endsWith('.cognitive_responsibility')) return '$haic-withdrawal.components.cognitive-responsibility-session-2';
+    if (part === 3 && component.endsWith('.nasa-tlx')) return '$haic-withdrawal.components.nasa-tlx-session-3';
+    return component;
+  });
+  partComponents.push('mastermind-part', ...sessionMeasures);
   if (part === 1) partComponents.push('$haic-withdrawal.components.demographics');
   if (part === 4) partComponents.push(...finalMeasures);
   partComponents.push('sona-completion-part');
@@ -136,7 +155,7 @@ for (let part = 1; part <= 4; part += 1) {
     studyMetadata: {
       ...source.studyMetadata,
       title: `Longitudinal Mastermind Study - Part ${part}`,
-      version: `v-5-sona-part-${part}`,
+      version: `v-6-sona-part-${part}`,
       description: `Part ${part} of the four-part SONA Mastermind study.`,
     },
     uiConfig: {

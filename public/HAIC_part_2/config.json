@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
     "title": "Longitudinal Mastermind Study - Part 2",
-    "version": "v-5-sona-part-2",
+    "version": "v-6-sona-part-2",
     "authors": [
       "Nils Ness"
     ],
@@ -45,7 +45,7 @@
     "order": "fixed",
     "components": [
       "mastermind-part",
-      "$haic-withdrawal.components.cognitive_responsibility",
+      "$haic-withdrawal.components.cognitive-responsibility-session-2",
       "$haic-withdrawal.components.nasa-tlx",
       "sona-completion-part"
     ]

@@ -54,8 +54,8 @@ test('four unique SONA study configs are published', async ({ request }) => {
         '$haic-withdrawal.components.game-tutorial-video',
       ] : []),
       'mastermind-part',
-      '$haic-withdrawal.components.cognitive_responsibility',
-      '$haic-withdrawal.components.nasa-tlx',
+      partNumber === 2 ? '$haic-withdrawal.components.cognitive-responsibility-session-2' : '$haic-withdrawal.components.cognitive_responsibility',
+      partNumber === 3 ? '$haic-withdrawal.components.nasa-tlx-session-3' : '$haic-withdrawal.components.nasa-tlx',
       ...(partNumber === 1 ? ['$haic-withdrawal.components.demographics'] : []),
       ...(partNumber === 4 ? ['willingness-by-condition', '$haic-withdrawal.components.Ownership'] : []),
       'sona-completion-part',
@@ -159,6 +159,41 @@ test('all scheduled scale items are randomized except demographics', async ({ re
     expect(components[name].responseOrder).toBe('random');
   }
   expect(components.demographics.responseOrder).toBe('fixed');
+});
+
+test('exactly one native attention check is scheduled in each session', async ({ request }) => {
+  const library = await (await request.get('/libraries/haic-withdrawal/config.json')).json();
+  const expected = ['4', '1', '6', '7'];
+  for (let session = 1; session <= 4; session += 1) {
+    const config = await (await request.get(`/HAIC_part_${session}/config.json`)).json();
+    const checks: Array<{ id: string; answer: string }> = [];
+    for (const reference of config.sequence.components) {
+      if (typeof reference !== 'string' || !reference.startsWith('$haic-withdrawal.components.')) continue;
+      const component = library.components[reference.replace('$haic-withdrawal.components.', '')];
+      const responses = component.response.filter((item: { id: string }) => item.id.startsWith('attention-check-session-'));
+      if (!responses.length) continue;
+      expect(component.provideFeedback).toBe(false);
+      expect(component.responseOrder).toBe(session === 1 ? 'fixed' : 'random');
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toMatchObject({ type: 'likert', numItems: 7, required: true });
+      checks.push(...component.correctAnswer);
+    }
+    expect(checks).toEqual([{ id: `attention-check-session-${session}`, answer: expected[session - 1] }]);
+  }
+});
+
+test('incorrect Session 2 check does not block progress or reveal feedback', async ({ page }) => {
+  await page.route('**/api/withdrawal/state', (route) => route.fulfill({ json: { ...stateForPart(2), partGameComplete: true } }));
+  await page.route('**/api/withdrawal/events', (route) => route.fulfill({ json: { accepted: 1 } }));
+  await page.goto('/HAIC_part_2/?sona_id=attention-wrong-answer');
+  await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
+  await page.getByRole('textbox').fill('MM-SESSION-2-COMPLETE');
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByText('For this item, please select 1.', { exact: false })).toBeVisible();
+  for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) await radio.click();
+  await expect(page.getByRole('button', { name: 'Check Answer' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByRole('slider')).toHaveCount(6);
 });
 
 for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
