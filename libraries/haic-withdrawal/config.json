@@ -195,6 +195,16 @@
           "required": true,
           "type": "shortText",
           "placeholder": "Enter the weekday"
+        },
+        {
+          "id": "attention-check-session-1",
+          "prompt": "How many positions does the hidden code have? Answer on the 1-7 scale.",
+          "type": "likert",
+          "required": true,
+          "numItems": 7,
+          "start": 1,
+          "leftLabel": "1",
+          "rightLabel": "7"
         }
       ],
       "instructionLocation": "aboveStimulus",
@@ -204,7 +214,14 @@
         "maxWidth": "960px",
         "margin": "0 auto"
       },
-      "responseOrder": "fixed"
+      "responseOrder": "fixed",
+      "correctAnswer": [
+        {
+          "id": "attention-check-session-1",
+          "answer": "4"
+        }
+      ],
+      "provideFeedback": false
     },
     "control-trust-willingness": {
       "type": "questionnaire",
@@ -498,6 +515,16 @@
           "leftLabel": "Strongly Disagree",
           "rightLabel": "Strongly Agree",
           "numItems": 7
+        },
+        {
+          "id": "attention-check-session-4",
+          "prompt": "For this item, please select 7.",
+          "type": "likert",
+          "required": true,
+          "numItems": 7,
+          "start": 1,
+          "leftLabel": "1",
+          "rightLabel": "7"
         }
       ],
       "instructionLocation": "aboveStimulus",
@@ -507,7 +534,14 @@
         "maxWidth": "960px",
         "margin": "0 auto"
       },
-      "responseOrder": "random"
+      "responseOrder": "random",
+      "correctAnswer": [
+        {
+          "id": "attention-check-session-4",
+          "answer": "7"
+        }
+      ],
+      "provideFeedback": false
     },
     "cognitive-load-intrinsic": {
       "type": "questionnaire",
@@ -910,6 +944,232 @@
         "minHeight": "420px"
       },
       "withSidebar": false
+    },
+    "cognitive-responsibility-session-2": {
+      "type": "questionnaire",
+      "description": "Please answer the following questions about your experience during the task.",
+      "responseDividers": true,
+      "responseOrder": "random",
+      "response": [
+        {
+          "id": "cr1",
+          "prompt": "Thinking through the task was mainly my responsibility.",
+          "type": "likert",
+          "required": true,
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "cr2",
+          "prompt": "Combining the available information into a decision was part of my role.",
+          "type": "likert",
+          "required": true,
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "cr3",
+          "prompt": "I think I have a responsibility to think about the solution.",
+          "type": "likert",
+          "required": true,
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "cr4",
+          "prompt": "I feel obliged to process the information to solve the task.",
+          "type": "likert",
+          "required": true,
+          "leftLabel": "Strongly disagree",
+          "rightLabel": "Strongly agree",
+          "numItems": 7
+        },
+        {
+          "id": "attention-check-session-2",
+          "prompt": "For this item, please select 1.",
+          "type": "likert",
+          "required": true,
+          "numItems": 7,
+          "start": 1,
+          "leftLabel": "1",
+          "rightLabel": "7"
+        }
+      ],
+      "instructionLocation": "aboveStimulus",
+      "instruction": "## Your experience in this session\nPlease answer with the four Mastermind games you just completed in mind.",
+      "style": {
+        "width": "75%",
+        "maxWidth": "960px",
+        "margin": "0 auto"
+      },
+      "correctAnswer": [
+        {
+          "id": "attention-check-session-2",
+          "answer": "1"
+        }
+      ],
+      "provideFeedback": false
+    },
+    "nasa-tlx-session-3": {
+      "type": "questionnaire",
+      "description": "Raw NASA-TLX: six unweighted workload ratings on a 0-100 scale.",
+      "responseDividers": true,
+      "responseOrder": "random",
+      "instructionLocation": "aboveStimulus",
+      "instruction": "## Workload in this session\nRate your experience across the four Mastermind games you just completed.",
+      "response": [
+        {
+          "id": "nasa-tlx-mental-demand",
+          "prompt": "How mentally demanding was the task?",
+          "required": true,
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "nasa-tlx-physical-demand",
+          "prompt": "How physically demanding was the task?",
+          "required": true,
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "nasa-tlx-temporal-demand",
+          "prompt": "How hurried or rushed was the pace of the task?",
+          "required": true,
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "nasa-tlx-performance",
+          "prompt": "How successful were you in accomplishing what you were asked to do?",
+          "required": true,
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Perfect",
+              "value": 0
+            },
+            {
+              "label": "Failure",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "nasa-tlx-effort",
+          "prompt": "How hard did you have to work to accomplish your level of performance?",
+          "required": true,
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "nasa-tlx-frustration",
+          "prompt": "How insecure, discouraged, irritated, stressed, and annoyed were you?",
+          "required": true,
+          "type": "slider",
+          "tlxStyle": true,
+          "withBar": false,
+          "step": 5,
+          "spacing": 5,
+          "startingValue": 50,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "attention-check-session-3",
+          "prompt": "How many colors are available to construct the code? Answer on the 1-7 scale.",
+          "type": "likert",
+          "required": true,
+          "numItems": 7,
+          "start": 1,
+          "leftLabel": "1",
+          "rightLabel": "7"
+        }
+      ],
+      "style": {
+        "width": "75%",
+        "maxWidth": "960px",
+        "margin": "0 auto"
+      },
+      "correctAnswer": [
+        {
+          "id": "attention-check-session-3",
+          "answer": "6"
+        }
+      ],
+      "provideFeedback": false
     }
   },
   "sequences": {}

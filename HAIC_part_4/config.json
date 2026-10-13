@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
     "title": "Longitudinal Mastermind Study - Part 4",
-    "version": "v-5-sona-part-4",
+    "version": "v-6-sona-part-4",
     "authors": [
       "Nils Ness"
     ],
