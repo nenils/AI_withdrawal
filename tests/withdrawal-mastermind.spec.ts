@@ -87,7 +87,8 @@ test('shows Advisor tools without disclosing the manipulation', async ({ page })
     },
   }));
 
-  await expect(page.getByRole('heading', { name: 'AI Advisor' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'AI', exact: true })).toBeVisible();
+  await expect(page.getByText(/AI Advisor|AI Judge/)).toHaveCount(0);
   await expect(page.locator('#conditionBadge')).toHaveCount(0);
   await expect(page.locator('#supportNotice')).toHaveCount(0);
   await expect(page.locator('#phaseModal')).toHaveCount(0);
@@ -109,12 +110,44 @@ test('hides Judge tools without announcing the withdrawal', async ({ page }) => 
     },
   }));
 
-  await expect(page.getByRole('heading', { name: 'AI Judge' })).toBeHidden();
+  await expect(page.locator('#supportPanel')).toBeHidden();
   await expect(page.locator('#conditionBadge')).toHaveCount(0);
   await expect(page.locator('#supportNotice')).toHaveCount(0);
   await expect(page.locator('#phaseModal')).toHaveCount(0);
   await expect(page.getByText(/assigned condition|support (has been )?withdrawn/i)).toHaveCount(0);
 });
+
+for (const condition of ['advisor', 'judge'] as const) {
+  test(`supports contextual AI chat for ${condition}`, async ({ page }) => {
+    const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    await page.route('**/api/rl/predict', (route) => route.fulfill({ json: { guess: ['Blue', 'Green', 'Red', 'Yellow'] } }));
+    await page.route('**/api/llm/chat', (route) => {
+      const payload = route.request().postDataJSON();
+      requests.push(payload);
+      return route.fulfill({ json: { choices: [{ message: { content: payload.messages[0].role === 'system' ? 'Use the feedback to compare possible positions.' : 'Suggested guess: Blue, Green, Red, Yellow.' } }] } });
+    });
+    await openGame(page, activeState({ condition, currentSession: 2, supportAvailable: true, supportPhase: 'supported' }));
+    await expect(page.getByRole('heading', { name: 'AI', exact: true })).toBeVisible();
+    if (condition === 'judge') {
+      for (const peg of await page.locator('#currentGuess button').all()) await peg.click();
+    }
+    await expect(page.locator('#sendChat')).toBeEnabled();
+    await page.getByLabel('Message AI').fill('Why would I move a color?');
+    await page.getByRole('button', { name: 'Send message' }).click();
+    await expect(page.locator('#chatHistory')).toContainText('Use the feedback to compare possible positions.');
+    await page.getByLabel('Message AI').fill('Can you explain that further?');
+    await page.getByRole('button', { name: 'Send message' }).click();
+    await expect.poll(() => requests.filter((request) => request.messages[0].role === 'system').length).toBe(2);
+    const chats = requests.filter((request) => request.messages[0].role === 'system');
+    expect(chats[1].messages.some((message) => message.role === 'assistant')).toBeTruthy();
+    expect(chats[0].messages[0].content).not.toMatch(/withdraw|condition|advisor|judge/i);
+    await page.screenshot({ path: `/tmp/withdrawal-chat-${condition}-desktop.png`, fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByLabel('Message AI')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+    await page.screenshot({ path: `/tmp/withdrawal-chat-${condition}-mobile.png`, fullPage: true });
+  });
+}
 
 test('shows and records a session confirmation code after four games', async ({ page }) => {
   await openGame(page, activeState({

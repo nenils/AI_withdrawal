@@ -69,6 +69,14 @@ load scales, and color marker items are no longer scheduled.
 
 The separate Mastermind-familiarity screener and recruitment workflow remain outside this application.
 
+### Participant Interface and Checks
+
+Session 1 instructions include `withdrawal_tutorial.mp4`, converted from the supplied October 13 recording. Both supported conditions expose an AI chat with game history and current-guess context, labelled only `AI`. The internal condition assignment and support schedule are unchanged. Judge chat requires a complete proposed guess; Advisor chat supports next-guess reasoning. Chats reset between games and their messages/responses are recorded as interaction events. Free-text chat contents are therefore research data, unlike the privacy-preserving keyboard activity categories.
+
+Demographics include the lowercase weekday bot check (expected answer `tuesday`) and euro income ranges. This is a screening indicator, not reliable proof of human identity, and it does not automatically exclude respondents. The legacy attention-check item (select 7 / Strongly Agree) remains in the unused intrinsic-load component and is not scheduled in the current four-part study.
+
+SONA credit confirmation is automatic, hidden and required: participants do not enter a value. The end page warns not to close the tab before upload confirmation, checks completion sequentially and retries errors. Supabase participant-data reads bypass browser cache, writes use zero cache duration, and completion no longer downloads and re-uploads participant data merely to set a year-long cache header. Actual production upload timing still needs measurement.
+
 ## Data and enforcement
 
 The API owns random codes, scores guesses, enforces attempt limits, fixes the condition assignment, and validates part order. `withdrawal_participants` stores longitudinal state, credited parts, and completed game histories. `withdrawal_events` stores timestamped interaction, support, mouse, click, keyboard, and visibility events. Standard reVISit/Supabase response collection stores questionnaire data separately for each `HAIC_part_N` study ID.

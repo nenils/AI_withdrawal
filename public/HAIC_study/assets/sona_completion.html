@@ -49,7 +49,7 @@
         status.innerHTML = partNumber === 4
           ? "<p><strong>Study complete.</strong> Your final SONA credit has been granted. Select Finish below to close the study.</p>"
           : "<p><strong>Part " + partNumber + " complete.</strong> Your SONA credit has been granted. SONA will make Part " + (partNumber + 1) + " available after the configured 24-hour separation. Select Finish below to close this part.</p>";
-        Revisit.postAnswers({sonaCreditGranted:true, sonaPart:partNumber, studyCompleted:result.studyCompleted});
+        Revisit.postAnswers({sonaCreditGranted:['confirmed'], sonaPart:partNumber, studyCompleted:result.studyCompleted});
       }).catch(function (error) {
         status.className = "error";
         status.innerHTML = "<p><strong>Credit could not be confirmed.</strong> " + error.message + ". Do not close the page; try again or contact the researcher.</p>";

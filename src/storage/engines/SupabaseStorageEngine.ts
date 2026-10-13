@@ -13,7 +13,7 @@ export class SupabaseStorageEngine extends StorageEngine {
   protected async _getFromStorage<T extends StorageObjectType>(prefix: string, type: T, studyId?: string) {
     const { data, error } = await this.supabase.storage
       .from('revisit')
-      .download(`${this.collectionPrefix}${studyId || this.studyId}/${prefix}_${type}`);
+      .download(`${this.collectionPrefix}${studyId || this.studyId}/${prefix}_${type}`, {}, type === 'participantData' ? { cache: 'no-store' } : {});
 
     if (error) {
       return {} as StorageObject<T>;
@@ -46,6 +46,7 @@ export class SupabaseStorageEngine extends StorageEngine {
       .from('revisit')
       .upload(`${this.collectionPrefix}${this.studyId}/${prefix}_${type}`, uploadObject, {
         upsert: true,
+        ...(type === 'participantData' ? { cacheControl: '0' } : {}),
       });
 
     if (error) {
@@ -65,6 +66,8 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   protected async _cacheStorageObject<T extends StorageObjectType>(prefix: string, type: T) {
+    // Participant answers remain mutable and must not receive immutable-asset caching.
+    if (type === 'participantData') return;
     await this.verifyStudyDatabase();
     // Download the existing object
     const { data, error: downloadError } = await this.supabase.storage

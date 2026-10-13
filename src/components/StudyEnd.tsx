@@ -20,6 +20,7 @@ export function StudyEnd() {
   const isAnalysis = useIsAnalysis();
 
   const [completed, setCompleted] = useState(false);
+  const [uploadError, setUploadError] = useState(false);
 
   useEffect(() => {
     // Don't save to the storage engine in analysis
@@ -29,13 +30,25 @@ export function StudyEnd() {
     }
 
     // verify that storageEngine.verifyCompletion() returns true, loop until it does
-    const interval = setInterval(async () => {
-      const isComplete = await storageEngine!.verifyCompletion();
-      if (isComplete) {
-        setCompleted(true);
-        clearInterval(interval);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function verify() {
+      try {
+        const isComplete = await storageEngine!.verifyCompletion();
+        if (cancelled) return;
+        setUploadError(false);
+        if (isComplete) {
+          setCompleted(true);
+          return;
+        }
+      } catch {
+        if (cancelled) return;
+        setUploadError(true);
       }
-    }, 2000);
+      timer = setTimeout(verify, 2000);
+    }
+    verify();
+    return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -90,7 +103,7 @@ export function StudyEnd() {
   }, [autoDownload, completed, delayCounter, downloadParticipant]);
 
   const studyId = useStudyId();
-  const [dataCollectionEnabled, setDataCollectionEnabled] = useState(false);
+  const [dataCollectionEnabled, setDataCollectionEnabled] = useState<boolean | null>(null);
   useEffect(() => {
     const checkDataCollectionEnabled = async () => {
       if (storageEngine) {
@@ -115,13 +128,15 @@ export function StudyEnd() {
   return (
     <Center style={{ height: '100%' }}>
       <Flex direction="column">
-        {completed || !dataCollectionEnabled
+        {completed || dataCollectionEnabled === false
           ? (processedStudyEndMsg
             ? <ReactMarkdownWrapper text={processedStudyEndMsg} />
             : <Text size="xl" display="block">Thank you for completing the study. You may close this window now.</Text>)
           : (
             <>
               <Text size="xl" display="block">Please wait while your answers are uploaded.</Text>
+              <Text fw={700}>Do not close the tab until data is uploaded!</Text>
+              {uploadError && <Text c="red">The upload could not be confirmed. Please check your connection. We will retry automatically.</Text>}
               <Space h="lg" />
               <Center>
                 <Loader color="blue" />

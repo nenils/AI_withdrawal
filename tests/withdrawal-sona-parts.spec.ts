@@ -73,6 +73,7 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await page.route('**/api/withdrawal/events', async (route) => {
       await route.fulfill({ json: { accepted: route.request().postDataJSON().events.length } });
     });
+    await page.route('**/api/sona/complete-part', (route) => route.fulfill({ json: { credited: true, studyCompleted: true } }));
     await page.goto(`/HAIC_part_4/?sona_id=questionnaire-${condition}`);
     await expect(page.getByText(/Component.*willingness-part.*not used deterministically/)).toHaveCount(0);
     await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
@@ -105,6 +106,11 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await expect(page.getByRole('heading', { name: 'Your guesses and decisions' })).toBeVisible();
     await expect(page.getByText('This was my task-solving process.')).toBeVisible();
     await expect(page.getByText(/interaction with the AI system/i)).toHaveCount(0);
+    for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) await radio.click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.frameLocator('iframe').getByText('Your final SONA credit has been granted.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('textbox')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
   });
 }
 
@@ -119,6 +125,16 @@ test('shared SONA assets and component library are published', async ({ request 
   }
 });
 
+test('new tutorial video loads in Session 1 instructions', async ({ page }) => {
+  await page.goto('/HAIC_part_1/?sona_id=video-browser-test');
+  await expect(page.getByRole('heading', { name: 'Mastermind Study', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  const video = page.locator('video');
+  await expect(video).toBeVisible();
+  await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThan(0);
+  expect(await video.evaluate((element: HTMLVideoElement) => element.duration)).toBeGreaterThan(0);
+});
+
 test('demographics include student and non-employment categories', async ({ request }) => {
   const response = await request.get('/libraries/haic-withdrawal/config.json');
   expect(response.ok()).toBeTruthy();
@@ -129,6 +145,11 @@ test('demographics include student and non-employment categories', async ({ requ
 
   expect(jobSector.options).toContain('Student');
   expect(jobSector.options).toContain('Not currently employed');
+  expect(library.components.demographics.response.some((item: { id: string }) => item.id === 'bot-check-day-after-monday')).toBeTruthy();
+  const income = library.components.demographics.response.find((item: { id: string }) => item.id === 'demographics-household-income');
+  expect(income.options[0]).toContain('\u20ac');
+  expect(JSON.stringify(income.options)).not.toContain('$');
+  expect(library.components['sona-completion'].response[0]).toMatchObject({ type: 'reactive', hidden: true, required: true });
 });
 
 test('all scheduled scale items are randomized except demographics', async ({ request }) => {

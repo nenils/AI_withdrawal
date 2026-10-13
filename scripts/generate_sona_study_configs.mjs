@@ -35,6 +35,15 @@ components.mastermind = {
 
 components.cognitive_responsibility.responseOrder = 'random';
 components.demographics.responseOrder = 'fixed';
+components.demographics.response.push({
+  id: 'bot-check-day-after-monday',
+  prompt: 'What day of the week is the day after Monday? Please answer in lowercase.',
+  required: true,
+  type: 'shortText',
+  placeholder: 'Enter the weekday',
+});
+components.demographics.response.find((item) => item.id === 'demographics-household-income').options =
+  components.demographics.response.find((item) => item.id === 'demographics-household-income').options.map((option) => option.replaceAll('$ ', '\u20ac '));
 components.Ownership.responseOrder = 'random';
 components.cognitive_responsibility.instruction = '## Your experience in this session\nPlease answer with the four Mastermind games you just completed in mind.';
 components.Ownership.instruction = '## Your guesses and decisions\nThink about the four Mastermind games you just completed, your guesses, decisions, and outcomes. Indicate how strongly you agree or disagree with each statement.';
@@ -79,14 +88,14 @@ components['sona-completion'] = {
   description: 'Server-side SONA credit granting for the current part.',
   response: [{
     id: 'sonaCreditGranted',
-    prompt: 'SONA credit confirmation',
+    prompt: '',
     required: true,
-    type: 'shortText',
-    location: 'sidebar',
+    type: 'reactive',
+    hidden: true,
+    location: 'belowStimulus',
   }],
   style: { minHeight: '420px' },
-  withSidebar: true,
-  sidebarWidth: 280,
+  withSidebar: false,
 };
 
 const library = {
