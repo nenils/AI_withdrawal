@@ -41,6 +41,9 @@
     .support h2 { font-size:17px; margin:0 0 8px; }
     .support-copy { font-size:14px; color:#4b5563; margin:0 0 12px; }
     .ai-output { min-height:90px; background:#f5f7f9; border:1px solid #d5dbe1; padding:11px; font-size:14px; white-space:pre-wrap; margin-top:12px; }
+    .chat-history { max-height:280px; overflow:auto; font-size:14px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .chat-history p { border-top:1px solid #d5dbe1; padding-top:10px; }
+    .chat-input { width:100%; min-height:72px; resize:vertical; font:inherit; margin:10px 0; padding:8px; }
     .lock { background:#fff; border:1px solid #ccd3da; border-radius:8px; padding:28px; text-align:center; }
     .lock h2 { margin-top:0; }
     .countdown { font-size:28px; font-weight:800; margin:18px 0; font-variant-numeric:tabular-nums; }
@@ -87,6 +90,12 @@
           <button class="primary" id="askAI">Ask AI</button>
           <button class="secondary" id="applyAI" hidden>Apply suggestion</button>
           <div class="ai-output" id="aiOutput">AI output will appear here.</div>
+          <div class="chat-history" id="chatHistory" aria-live="polite"></div>
+          <form id="chatForm">
+            <label for="chatInput">Message AI</label>
+            <textarea class="chat-input" id="chatInput" maxlength="2000" required></textarea>
+            <button class="primary" id="sendChat" type="submit">Send message</button>
+          </form>
         </aside>
       </div>
     </div>
@@ -104,9 +113,13 @@
     var currentGuess = [null, null, null, null];
     var selectedColor = COLORS[0];
     var aiSuggestion = null;
+    var chatMessages = [];
+    var chatRound = null;
+    var busy = false;
     var pendingEvents = [];
     var eventSequence = 0;
     var eventFlushInFlight = false;
+    var eventRetryAfter = 0;
     var lastMouseAt = 0;
     var lastSupportPhase = null;
 
@@ -121,7 +134,7 @@
         type: type,
         data: eventData,
         timestamp: now(),
-        sessionNumber: state ? state.currentSession : 1,
+        sessionNumber: state ? state.currentSession : (partNumber || 1),
         roundNumber: state && state.game ? state.game.round : null
       });
       if (pendingEvents.length > 10000) pendingEvents.splice(0, pendingEvents.length - 10000);
@@ -129,7 +142,8 @@
     }
     function flushEvents(useBeacon) {
       if (!participantId || !pendingEvents.length) return;
-      var batch = pendingEvents.splice(0, 500);
+      if (!useBeacon && (eventFlushInFlight || Date.now() < eventRetryAfter)) return;
+      var batch = pendingEvents.splice(0, 100);
       var body = JSON.stringify({ participantId: participantId, events: batch });
       if (useBeacon && navigator.sendBeacon) {
         if (!navigator.sendBeacon("/api/withdrawal/events", new Blob([body], {type:"application/json"}))) {
@@ -145,8 +159,9 @@
       fetch("/api/withdrawal/events", { method:"POST", headers:{"Content-Type":"application/json"}, body:body, keepalive:true })
         .then(function (response) {
           if (!response.ok) throw new Error("Tracking upload failed");
+          eventRetryAfter = 0;
         })
-        .catch(function () { pendingEvents = batch.concat(pendingEvents); })
+        .catch(function () { pendingEvents = batch.concat(pendingEvents); eventRetryAfter = Date.now() + 5000; })
         .finally(function () {
           eventFlushInFlight = false;
           if (pendingEvents.length >= 25) flushEvents();
@@ -275,13 +290,12 @@
       var shown = condition !== "control" && state.supportAvailable;
       el("supportPanel").hidden = !shown;
       if (!shown) return;
+      el("supportTitle").textContent = "AI";
       if (condition === "advisor") {
-        el("supportTitle").textContent = "AI Advisor";
-        el("supportCopy").textContent = "The advisor proposes a next guess. You may apply it and still change any position before submitting.";
+        el("supportCopy").textContent = "AI proposes a next guess. You may apply it and still change any position before submitting.";
         el("askAI").textContent = "Request suggestion";
       } else {
-        el("supportTitle").textContent = "AI Judge";
-        el("supportCopy").textContent = "Build a complete guess first, then ask the judge to review it before you submit.";
+        el("supportCopy").textContent = "Build a complete guess first, then ask AI to review it before you submit.";
         el("askAI").textContent = "Review current guess";
       }
     }
@@ -297,15 +311,23 @@
         return;
       }
       if (!state.game) throw new Error("No active game was returned for this SONA part");
+      if (chatRound !== state.game.round) {
+        chatRound = state.game.round;
+        chatMessages = [];
+        el("chatHistory").textContent = "";
+        el("chatInput").value = "";
+      }
       el("game").hidden = false;
       el("roundBadge").textContent = "Game " + state.game.round + "/4";
       el("attemptBadge").textContent = "Attempt " + (state.game.guesses.length + 1) + "/10";
       trackSupportPhase(); renderPalette(); renderGuess(); renderHistory(); renderSupport(); postRevisit();
       if (condition === "advisor" && state.supportAvailable && !aiSuggestion) requestAI(true);
     }
-    function setBusy(busy) {
-      el("submitGuess").disabled = busy;
-      el("askAI").disabled = busy;
+    function setBusy(value) {
+      busy = value;
+      el("submitGuess").disabled = value;
+      el("askAI").disabled = value;
+      el("sendChat").disabled = value;
     }
     function submitGuess() {
       if (currentGuess.some(function (value) { return !value; })) {
@@ -400,11 +422,11 @@
       }).join("\n") || "No earlier attempts in this game.";
       var prompt;
       if (condition === "advisor") {
-        prompt = "You are the AI Advisor in a Mastermind study. Explain the trained model's next suggestion briefly and clearly. " +
+        prompt = "You are AI support for a Mastermind game. Explain the trained model's next suggestion briefly and clearly. " +
           "The participant may apply or edit it. History:\n" + history + "\nModel suggestion: [" + modelSuggestion.join(", ") + "]\n" +
           "End with exactly PREDICTION: [" + modelSuggestion.join(", ") + "]";
       } else {
-        prompt = "You are the AI Judge in a Mastermind study. Review the participant's proposed guess using the feedback history. " +
+        prompt = "You are AI support for a Mastermind game. Review the participant's proposed guess using the feedback history. " +
           "History:\n" + history + "\nParticipant proposal: [" + proposedGuess.join(", ") + "]\n" +
           "Trained model recommendation: [" + modelSuggestion.join(", ") + "]\nGive a brief review and end with exactly FINAL GUESS: [" + modelSuggestion.join(", ") + "]";
       }
@@ -425,6 +447,47 @@
         .then(function (result) { state=result; condition=result.condition; event("stateLoaded", {storage:result.storage, supportPhase:result.supportPhase, condition:condition}); render(); })
         .catch(function (error) { el("loading").innerHTML = "<h2>Unable to load the session</h2><p class=\"error\">" + error.message + "</p>"; });
     }
+
+    function appendChat(role, content) {
+      var line = document.createElement("p");
+      var label = document.createElement("strong");
+      label.textContent = role === "user" ? "You: " : "AI: ";
+      line.appendChild(label);
+      line.appendChild(document.createTextNode(content));
+      el("chatHistory").appendChild(line);
+      el("chatHistory").scrollTop = el("chatHistory").scrollHeight;
+    }
+    el("chatForm").onsubmit = function (e) {
+      e.preventDefault();
+      if (busy || !state || !state.supportAvailable || !state.game) return;
+      var message = el("chatInput").value.trim();
+      if (!message) return;
+      if (condition === "judge" && currentGuess.some(function (value) { return !value; })) {
+        el("status").textContent = "Complete your proposed guess before messaging AI.";
+        return;
+      }
+      var context = "You are AI support for Mastermind with four positions and six colors, with repetitions allowed. " +
+        "Black pegs count correct colors in correct positions; white pegs count correct colors in other positions. " +
+        "Feedback does not identify positions. Do not claim to know the hidden code. " +
+        (condition === "judge" ? "Review the player's reasoning and proposed guess; do not provide an unsolicited replacement guess. " : "Help the player reason and choose their next guess. ") +
+        "Guess and feedback history: " + JSON.stringify(state.game.guesses) +
+        ". Current proposed guess: " + JSON.stringify(currentGuess) + ". Latest AI suggestion: " + JSON.stringify(aiSuggestion);
+      setBusy(true);
+      appendChat("user", message);
+      el("chatInput").value = "";
+      event("aiChatMessageSent", {message:message, proposedGuess:currentGuess.slice()});
+      var messages = [{role:"system", content:context}].concat(chatMessages.slice(-12), [{role:"user", content:message}]);
+      api("/api/llm/chat", {participantId:participantId, studySession:state.currentSession, studyRound:state.game.round, temperature:0.2, max_tokens:400, messages:messages})
+        .then(function (result) {
+          var reply = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
+          if (!reply) throw new Error("AI returned no response. Please try again.");
+          chatMessages.push({role:"user", content:message}, {role:"assistant", content:reply});
+          appendChat("assistant", reply);
+          event("aiChatResponseReceived", {message:reply});
+        })
+        .catch(function (error) { appendChat("assistant", error.message); event("aiChatFailed", {message:error.message}); })
+        .finally(function () { setBusy(false); });
+    };
 
     el("submitGuess").onclick = submitGuess;
     el("clearGuess").onclick = function () { currentGuess=[null,null,null,null]; renderGuess(); event("guessCleared"); };

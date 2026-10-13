@@ -179,15 +179,22 @@
           "type": "dropdown",
           "placeholder": "Select your household income range",
           "options": [
-            "Less than $ 20,000",
-            "$ 20,000 to $ 39,999",
-            "$ 40,000 to $ 59,999",
-            "$ 60,000 to $ 79,999",
-            "$ 80,000 to $ 99,999",
-            "$ 100,000 to $ 149,999",
-            "$ 150,000 or more",
+            "Less than € 20,000",
+            "€ 20,000 to € 39,999",
+            "€ 40,000 to € 59,999",
+            "€ 60,000 to € 79,999",
+            "€ 80,000 to € 99,999",
+            "€ 100,000 to € 149,999",
+            "€ 150,000 or more",
             "Prefer not to say"
           ]
+        },
+        {
+          "id": "bot-check-day-after-monday",
+          "prompt": "What day of the week is the day after Monday? Please answer in lowercase.",
+          "required": true,
+          "type": "shortText",
+          "placeholder": "Enter the weekday"
         }
       ],
       "instructionLocation": "aboveStimulus",
@@ -892,17 +899,17 @@
       "response": [
         {
           "id": "sonaCreditGranted",
-          "prompt": "SONA credit confirmation",
+          "prompt": "",
           "required": true,
-          "type": "shortText",
-          "location": "sidebar"
+          "type": "reactive",
+          "hidden": true,
+          "location": "belowStimulus"
         }
       ],
       "style": {
         "minHeight": "420px"
       },
-      "withSidebar": true,
-      "sidebarWidth": 280
+      "withSidebar": false
     }
   },
   "sequences": {}

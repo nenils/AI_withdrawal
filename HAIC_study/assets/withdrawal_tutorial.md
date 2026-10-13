@@ -2,6 +2,8 @@
 
 In each game, your goal is to identify a hidden code of four colors.
 
+<video controls preload="metadata" style="width:100%;max-width:720px" aria-label="Mastermind tutorial"><source src="/HAIC_study/assets/withdrawal_tutorial.mp4" type="video/mp4">Your browser does not support this video.</video>
+
 - Six colors are available in every game.
 - A color may appear more than once in the hidden code.
 - You have up to 10 attempts per game.
