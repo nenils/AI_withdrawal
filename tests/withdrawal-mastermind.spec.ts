@@ -137,10 +137,12 @@ for (const condition of ['advisor', 'judge'] as const) {
     await expect(page.locator('#chatHistory')).toContainText('Use the feedback to compare possible positions.');
     await page.getByLabel('Message AI').fill('Can you explain that further?');
     await page.getByRole('button', { name: 'Send message' }).click();
-    await expect.poll(() => requests.filter((request) => request.messages[0].role === 'system').length).toBe(2);
-    const chats = requests.filter((request) => request.messages[0].role === 'system');
+    const isChat = (request: typeof requests[number]) => ['Why would I move a color?', 'Can you explain that further?'].includes(request.messages.at(-1)!.content);
+    await expect.poll(() => requests.filter(isChat).length).toBe(2);
+    const chats = requests.filter(isChat);
     expect(chats[1].messages.some((message) => message.role === 'assistant')).toBeTruthy();
-    expect(chats[0].messages[0].content).not.toMatch(/withdraw|condition|advisor|judge/i);
+    expect(chats[0].messages[0].content).not.toMatch(/withdraw|AI Advisor|AI Judge|session/i);
+    expect(chats[0].messages[0].content).toContain(condition === 'advisor' ? 'autonomy is HIGH' : 'autonomy is LOW');
     await page.screenshot({ path: `/tmp/withdrawal-chat-${condition}-desktop.png`, fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByLabel('Message AI')).toBeVisible();
@@ -156,6 +158,56 @@ test('shows and records a session confirmation code after four games', async ({ 
 
   await expect(page.getByText('MM-SESSION-1-COMPLETE', { exact: true })).toBeVisible();
   await expect(page.getByText('This session\'s games are complete', { exact: true })).toBeVisible();
+});
+
+for (const fail of [false, true]) {
+  test(`low-autonomy review never offers an RL replacement (LLM failure: ${fail})`, async ({ page }) => {
+    const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    await page.route('**/api/rl/predict', (route) => route.fulfill({ json: { guess: ['Red', 'Yellow', 'Purple', 'Orange'] } }));
+    await page.route('**/api/llm/chat', (route) => {
+      requests.push(route.request().postDataJSON());
+      return fail
+        ? route.fulfill({ status: 503, json: { detail: 'LLM unavailable' } })
+        : route.fulfill({ json: { choices: [{ message: { content: 'Compare your proposal with the previous feedback.' } }] } });
+    });
+    await openGame(page, activeState({ condition: 'judge', currentSession: 2, supportAvailable: true, supportPhase: 'supported' }));
+    for (const peg of await page.locator('#currentGuess button').all()) await peg.click();
+    await page.getByRole('button', { name: 'Review current guess' }).click();
+    await expect(page.locator('#aiOutput')).toContainText(fail ? 'AI feedback is unavailable' : 'Compare your proposal');
+    await expect(page.locator('#applyAI')).toBeHidden();
+    expect(await page.locator('#currentGuess button').evaluateAll((pegs) => pegs.map((peg) => peg.getAttribute('title')))).toEqual(['Blue', 'Blue', 'Blue', 'Blue']);
+    await expect(page.locator('#aiOutput')).not.toContainText('Red');
+    const system = requests[0].messages[0];
+    expect(system.role).toBe('system');
+    expect(system.content).toContain('autonomy is LOW');
+    expect(system.content).toContain('Do NOT output a full four-color guess');
+    expect(system.content).toContain('for your feedback calibration only: [Red, Yellow, Purple, Orange]');
+    expect(requests[0].messages.at(-1)!.content).toContain('feedback only');
+  });
+}
+
+test('high-autonomy chat refines and prefills its prediction with the same system policy', async ({ page }) => {
+  const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+  await page.route('**/api/rl/predict', (route) => route.fulfill({ json: { guess: ['Blue', 'Green', 'Red', 'Yellow'] } }));
+  await page.route('**/api/llm/chat', (route) => {
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({ json: { choices: [{ message: { content: requests.length === 1
+      ? 'Test these colors. PREDICTION: [Blue, Green, Red, Yellow]'
+      : 'Try the revised order. PREDICTION: [Green, Blue, Yellow, Red]' } }] } });
+  });
+  await openGame(page, activeState({ condition: 'advisor', currentSession: 2, supportAvailable: true, supportPhase: 'supported' }));
+  await expect(page.locator('#applyAI')).toBeVisible();
+  await expect(page.locator('#sendChat')).toBeEnabled();
+  await page.getByLabel('Message AI').fill('Please reconsider that ordering.');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.locator('#chatHistory')).toContainText('Try the revised order.');
+  expect(await page.locator('#currentGuess button').evaluateAll((pegs) => pegs.map((peg) => peg.getAttribute('title')))).toEqual(['Green', 'Blue', 'Yellow', 'Red']);
+  for (const request of requests) {
+    expect(request.messages[0].role).toBe('system');
+    expect(request.messages[0].content).toContain('autonomy is HIGH');
+    expect(request.messages[0].content).toContain('REFINE your prediction');
+  }
+  expect(requests[1].messages.some((message) => message.role === 'assistant' && message.content.includes('Test these colors.'))).toBeTruthy();
 });
 
 test('uploads mouse and privacy-preserving keyboard activity', async ({ page }) => {

@@ -158,7 +158,13 @@ def dummy_llm_response(payload: ChatPayload) -> dict[str, Any]:
                 else:
                     final_guess = colors
 
-    if prediction:
+    feedback_only = any(
+        message.get("role") == "system" and "autonomy is LOW" in str(message.get("content", ""))
+        for message in payload.messages
+    )
+    if feedback_only:
+        content = "The dummy LLM proxy is active; compare your proposed guess with the previous feedback and decide whether to revise it."
+    elif prediction:
         content = (
             "The dummy LLM proxy is active. The trained RL model suggested this guess "
             "because it is consistent with the current game state supplied by the frontend. "
