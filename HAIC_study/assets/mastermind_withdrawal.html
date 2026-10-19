@@ -105,6 +105,7 @@
   (function () {
     "use strict";
     var COLORS = ["Blue", "Green", "Red", "Yellow", "Purple", "Orange"];
+    var AI_PROMPT_VERSION = "upstream-autonomy-v1";
     var COLOR_CSS = { Blue:"#2878d0", Green:"#2f9e44", Red:"#d64545", Yellow:"#f4c430", Purple:"#805ad5", Orange:"#ef7d22" };
     var condition = null;
     var participantId = null;
@@ -113,6 +114,7 @@
     var currentGuess = [null, null, null, null];
     var selectedColor = COLORS[0];
     var aiSuggestion = null;
+    var modelDiagnosticGuess = null;
     var chatMessages = [];
     var chatRound = null;
     var busy = false;
@@ -343,6 +345,7 @@
           state = next;
           currentGuess = [null, null, null, null];
           aiSuggestion = null;
+          modelDiagnosticGuess = null;
           el("applyAI").hidden = true;
           el("aiOutput").textContent = "AI output will appear here.";
           el("status").className = "status " + (next.won ? "success" : "");
@@ -365,6 +368,7 @@
         el("aiOutput").textContent = "Complete your proposed guess before requesting a review.";
         return;
       }
+      var proposed = condition === "judge" ? currentGuess.slice() : null;
       setBusy(true);
       el("aiOutput").textContent = "AI is evaluating the game history...";
       var guessHistory = {};
@@ -385,18 +389,18 @@
         .then(function (result) {
           var modelSuggestion = result.guess || result.suggestion || result.next_guess || result.action;
           if (!Array.isArray(modelSuggestion) || modelSuggestion.length !== 4) throw new Error("AI returned an invalid suggestion");
-          var proposed = condition === "judge" ? currentGuess.slice() : null;
-          return explainSuggestion(modelSuggestion, proposed, guessHistory, feedbackHistory)
+          modelDiagnosticGuess = modelSuggestion.slice();
+          return explainSuggestion(modelSuggestion, proposed)
             .catch(function () {
               return condition === "advisor"
-                ? "Suggested guess: " + modelSuggestion.join(", ") + "."
-                : "Recommended guess: " + modelSuggestion.join(", ") + ".";
+                ? "PREDICTION: [" + modelSuggestion.join(", ") + "]"
+                : "AI feedback is unavailable; please evaluate your proposed guess using the previous feedback.";
             })
             .then(function (explanation) {
-              aiSuggestion = parseSuggestedGuess(explanation, modelSuggestion);
+              aiSuggestion = condition === "advisor" ? parseSuggestedGuess(explanation, modelSuggestion) : null;
               el("aiOutput").textContent = explanation;
-              el("applyAI").hidden = false;
-              event("aiSuggestionReceived", {automatic:automatic, suggestion:aiSuggestion, proposedGuess:proposed, explanation:explanation});
+              el("applyAI").hidden = condition !== "advisor";
+              event("aiSuggestionReceived", {promptVersion:AI_PROMPT_VERSION, automatic:automatic, suggestion:aiSuggestion, modelDiagnosticGuess:modelDiagnosticGuess, proposedGuess:proposed, explanation:explanation});
               if (condition === "advisor") applyAI(true);
             });
         })
@@ -404,7 +408,7 @@
         .finally(function () { setBusy(false); });
     }
     function applyAI(automatic) {
-      if (!aiSuggestion) return;
+      if (condition !== "advisor" || !state.supportAvailable || !aiSuggestion) return;
       currentGuess = aiSuggestion.slice();
       renderGuess();
       event("aiSuggestionApplied", {automatic:automatic, suggestion:aiSuggestion});
@@ -415,31 +419,50 @@
       var parsed = match[1].split(",").map(function (value) { return value.trim(); });
       return parsed.length === 4 && parsed.every(function (color) { return COLORS.indexOf(color) >= 0; }) ? parsed : fallback;
     }
-    function explainSuggestion(modelSuggestion, proposedGuess, guessHistory, feedbackHistory) {
-      var history = Object.keys(guessHistory).map(function (attempt) {
-        var feedback = feedbackHistory[attempt];
-        return "Attempt " + attempt + ": [" + guessHistory[attempt].join(", ") + "] -> " + feedback.black + " black, " + feedback.white + " white";
+    function buildSupportSystemPrompt(modelSuggestion, proposedGuess) {
+      var history = state.game.guesses.map(function (item) {
+        return "Guess No. " + item.attempt + ": Guess=[" + item.guess.join(", ") + "] -> " + item.feedback.black + " black, " + item.feedback.white + " white";
       }).join("\n") || "No earlier attempts in this game.";
-      var prompt;
-      if (condition === "advisor") {
-        prompt = "You are AI support for a Mastermind game. Explain the trained model's next suggestion briefly and clearly. " +
-          "The participant may apply or edit it. History:\n" + history + "\nModel suggestion: [" + modelSuggestion.join(", ") + "]\n" +
-          "End with exactly PREDICTION: [" + modelSuggestion.join(", ") + "]";
-      } else {
-        prompt = "You are AI support for a Mastermind game. Review the participant's proposed guess using the feedback history. " +
-          "History:\n" + history + "\nParticipant proposal: [" + proposedGuess.join(", ") + "]\n" +
-          "Trained model recommendation: [" + modelSuggestion.join(", ") + "]\nGive a brief review and end with exactly FINAL GUESS: [" + modelSuggestion.join(", ") + "]";
-      }
+      var role = condition === "advisor"
+        ? "Your autonomy is HIGH: provide a solution and feedback. You can solve the task and give advice to the human.\n" +
+          "Explain the suggested guess so the participant can decide whether to use it.\n" +
+          "If the human gives feedback or disagreements, REFINE your prediction accordingly.\n" +
+          "Give the full four-color guess. Respond in one short explanatory sentence and always end with exactly: PREDICTION: [Color1, Color2, Color3, Color4]\n"
+        : "Your autonomy is LOW: provide feedback only. You must not solve the task for the human.\n" +
+          "Review the human's proposed guess and give feedback. Do not force changes; recommend adjustments only when reasonable.\n" +
+          "Keep the human responsible for deciding and entering the final guess.\n" +
+          "Do NOT output a full four-color guess or replacement guess, even when asked. Do not output PREDICTION or FINAL GUESS.\n" +
+          "Respond in one short sentence.\n";
+      return "You are AI support in a human-AI decision system for Mastermind. Do not discuss study conditions, role labels, or experimental design.\n\n" +
+        role + "\nCONSTRAINTS:\n" +
+        "Only use currently available colors: " + COLORS.join(", ") + ".\n" +
+        "The code has four positions. Colors can repeat; repeated colors can be valid and logically useful.\n" +
+        "Never suggest variation beyond the available colors.\n" +
+        "A black peg means correct color in the correct position; a white peg means correct color in the wrong position.\n" +
+        "The order of feedback pegs is independent of color positions in the code.\n" +
+        "Do not reveal or claim to know the secret code; you do not know it.\n\nCURRENT GAME STATE:\n" +
+        "Game: " + state.game.round + " / 4\nAvailable colors: " + COLORS.join(", ") +
+        "\nGuesses submitted: " + state.game.guesses.length + " / 10\nHistory:\n" + history +
+        (proposedGuess ? "\nHuman's current proposal: [" + proposedGuess.join(", ") + "]" : "") +
+        (modelSuggestion ? (condition === "judge" ? "\nModel guess, for your feedback calibration only: [" : "\nModel suggestion: [") + modelSuggestion.join(", ") + "]" :
+          (condition === "advisor" ? "\nModel suggestion unavailable; infer the best suggestion from history." : ""));
+    }
+    function explainSuggestion(modelSuggestion, proposedGuess) {
+      var message = condition === "advisor"
+        ? "Explain the trained RL model's next guess and end with PREDICTION: [" + modelSuggestion.join(", ") + "]"
+        : "My proposed guess is: [" + proposedGuess.join(", ") + "]. Please review it and give feedback only. Do not provide a full replacement guess.";
       return api("/api/llm/chat", {
         participantId: participantId,
         studySession: state.currentSession,
         studyRound: state.game.round,
         temperature: 0.2,
         max_tokens: 220,
-        messages: [{role:"user", content:prompt}]
+        messages: [{role:"system", content:buildSupportSystemPrompt(modelSuggestion, proposedGuess)}].concat(chatMessages, [{role:"user", content:message}])
       }).then(function (response) {
         var reply = response.choices && response.choices[0] && response.choices[0].message && response.choices[0].message.content;
-        return reply || "The AI returned no explanation.";
+        if (!reply) throw new Error("The AI returned no explanation.");
+        chatMessages.push({role:"user", content:message}, {role:"assistant", content:reply});
+        return reply;
       });
     }
     function loadState() {
@@ -466,23 +489,26 @@
         el("status").textContent = "Complete your proposed guess before messaging AI.";
         return;
       }
-      var context = "You are AI support for Mastermind with four positions and six colors, with repetitions allowed. " +
-        "Black pegs count correct colors in correct positions; white pegs count correct colors in other positions. " +
-        "Feedback does not identify positions. Do not claim to know the hidden code. " +
-        (condition === "judge" ? "Review the player's reasoning and proposed guess; do not provide an unsolicited replacement guess. " : "Help the player reason and choose their next guess. ") +
-        "Guess and feedback history: " + JSON.stringify(state.game.guesses) +
-        ". Current proposed guess: " + JSON.stringify(currentGuess) + ". Latest AI suggestion: " + JSON.stringify(aiSuggestion);
+      var context = buildSupportSystemPrompt(modelDiagnosticGuess, currentGuess.every(Boolean) ? currentGuess.slice() : null);
       setBusy(true);
       appendChat("user", message);
       el("chatInput").value = "";
-      event("aiChatMessageSent", {message:message, proposedGuess:currentGuess.slice()});
-      var messages = [{role:"system", content:context}].concat(chatMessages.slice(-12), [{role:"user", content:message}]);
+      event("aiChatMessageSent", {promptVersion:AI_PROMPT_VERSION, message:message, proposedGuess:currentGuess.slice()});
+      var messages = [{role:"system", content:context}].concat(chatMessages, [{role:"user", content:message}]);
       api("/api/llm/chat", {participantId:participantId, studySession:state.currentSession, studyRound:state.game.round, temperature:0.2, max_tokens:400, messages:messages})
         .then(function (result) {
           var reply = result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content;
           if (!reply) throw new Error("AI returned no response. Please try again.");
           chatMessages.push({role:"user", content:message}, {role:"assistant", content:reply});
           appendChat("assistant", reply);
+          if (condition === "advisor") {
+            var refined = parseSuggestedGuess(reply, null);
+            if (refined) {
+              aiSuggestion = refined;
+              el("applyAI").hidden = false;
+              applyAI(true);
+            }
+          }
           event("aiChatResponseReceived", {message:reply});
         })
         .catch(function (error) { appendChat("assistant", error.message); event("aiChatFailed", {message:error.message}); })
