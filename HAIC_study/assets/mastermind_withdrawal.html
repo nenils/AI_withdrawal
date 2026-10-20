@@ -118,6 +118,7 @@
     var chatMessages = [];
     var chatRound = null;
     var busy = false;
+    var pendingOperations = 0;
     var pendingEvents = [];
     var eventSequence = 0;
     var eventFlushInFlight = false;
@@ -326,12 +327,15 @@
       if (condition === "advisor" && state.supportAvailable && !aiSuggestion) requestAI(true);
     }
     function setBusy(value) {
-      busy = value;
-      el("submitGuess").disabled = value;
-      el("askAI").disabled = value;
-      el("sendChat").disabled = value;
+      pendingOperations = Math.max(0, pendingOperations + (value ? 1 : -1));
+      busy = pendingOperations > 0;
+      el("submitGuess").disabled = busy;
+      el("askAI").disabled = busy;
+      el("sendChat").disabled = busy;
+      el("applyAI").disabled = busy;
     }
     function submitGuess() {
+      if (busy) return;
       if (currentGuess.some(function (value) { return !value; })) {
         el("status").className = "status error";
         el("status").textContent = "Fill all four positions before submitting.";
@@ -363,6 +367,7 @@
         .finally(function () { setBusy(false); });
     }
     function requestAI(automatic) {
+      if (busy && !automatic) return;
       if (!state.supportAvailable) return;
       if (condition === "judge" && currentGuess.some(function (value) { return !value; })) {
         el("aiOutput").textContent = "Complete your proposed guess before requesting a review.";
@@ -375,6 +380,7 @@
       var feedbackHistory = {};
       state.game.guesses.forEach(function (item) { guessHistory[item.attempt] = item.guess; feedbackHistory[item.attempt] = item.feedback; });
       var payload = {
+        participantId: participantId,
         reason: condition === "advisor" ? "advisor suggestion" : "judge review",
         round: state.game.round,
         codeLength: 4,

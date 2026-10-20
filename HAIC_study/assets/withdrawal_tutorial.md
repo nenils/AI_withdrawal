@@ -17,3 +17,5 @@ After every guess, you receive feedback:
 - The order of the feedback markers does not correspond to the positions in your guess.
 
 You will complete four sessions. The next session becomes available 24 hours after you complete the current session. Always return using the same participant link.
+
+Use the same device, browser, and browser profile for all four sessions. Do not clear your browser data during the study. If you need to switch devices or browsers, contact the researcher to restore access without losing your progress.
