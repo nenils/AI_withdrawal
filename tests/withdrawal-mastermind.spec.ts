@@ -261,3 +261,30 @@ test('uploads mouse and privacy-preserving keyboard activity', async ({ page }) 
   expect(JSON.stringify(keyEvents)).not.toContain('"key":"a"');
   expect(JSON.stringify(keyEvents)).not.toContain('"code":"KeyA"');
 });
+
+test('controls remain locked until automatic advice after a submitted guess finishes', async ({ page }) => {
+  const initial = activeState({ condition: 'advisor', currentSession: 4, supportAvailable: true, supportPhase: 'supported' });
+  let calls = 0;
+  let release: (() => void) | undefined;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/rl/predict', (route) => route.fulfill({ json: { guess: ['Blue', 'Green', 'Red', 'Yellow'] } }));
+  await page.route('**/api/llm/chat', async (route) => {
+    calls += 1;
+    if (calls === 2) await pending;
+    await route.fulfill({ json: { choices: [{ message: { content: 'PREDICTION: [Blue, Green, Red, Yellow]' } }] } });
+  });
+  await page.route('**/api/withdrawal/guess', (route) => route.fulfill({ json: {
+    ...initial, attempt: 1, feedback: { black: 1, white: 1 }, roundFinished: false,
+    game: { ...initial.game, guesses: [{ attempt: 1, guess: ['Blue', 'Green', 'Red', 'Yellow'], feedback: { black: 1, white: 1 } }] },
+  } }));
+  await openGame(page, initial);
+  await expect(page.locator('#submitGuess')).toBeEnabled();
+  await expect(page.locator('#applyAI')).toBeVisible();
+  await page.locator('#submitGuess').click();
+  await expect.poll(() => calls).toBe(2);
+  await expect(page.locator('#sendChat')).toBeDisabled();
+  await expect(page.locator('#submitGuess')).toBeDisabled();
+  await expect(page.locator('#askAI')).toBeDisabled();
+  release!();
+  await expect(page.locator('#sendChat')).toBeEnabled();
+});

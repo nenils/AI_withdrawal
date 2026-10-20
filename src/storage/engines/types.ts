@@ -661,7 +661,14 @@ export abstract class StorageEngine {
     };
   }
 
-  // The actual logic to save the answers to storage, called by the throttled saveAnswers method
+  private answerSaveChain: Promise<void> = Promise.resolve();
+
+  async flushAnswers() {
+    await this.__throttleSaveAnswers.flush();
+    await this.answerSaveChain;
+  }
+
+  // Serialize snapshots so an older upload cannot finish after a newer one.
   protected async _saveAnswers() {
     await this.verifyStudyDatabase();
 
@@ -669,12 +676,13 @@ export abstract class StorageEngine {
       throw new Error('Participant not initialized');
     }
 
-    // Push the updated participant data to firebase
-    await this._pushToStorage(
-      `participants/${this.currentParticipantId}`,
-      'participantData',
-      this.participantData,
-    );
+    const participantId = this.currentParticipantId;
+    const snapshot = structuredClone(this.participantData);
+    const save = this.answerSaveChain.catch(() => {}).then(() => this._pushToStorage(
+      `participants/${participantId}`, 'participantData', snapshot,
+    ));
+    this.answerSaveChain = save;
+    await save;
   }
 
   // Save the answer into the local participant data and then call the throttled saveAnswers method.
@@ -694,6 +702,7 @@ export abstract class StorageEngine {
 
   // Verifies if the current participant has completed the study. Checks that the throttled answers are saved and marks the participant as complete if so.
   async verifyCompletion() {
+    await this.flushAnswers();
     await this.verifyStudyDatabase();
 
     if (!this.studyId) {

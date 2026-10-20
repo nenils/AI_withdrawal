@@ -6,6 +6,7 @@ import { useCurrentComponent, useCurrentIdentifier } from '../routes/utils';
 import { useStoreDispatch, useStoreActions, useStoreSelector } from '../store/store';
 import { ParticipantData, WebsiteComponent } from '../parser/types';
 import { PREFIX as BASE_PREFIX } from '../utils/Prefix';
+import { useStorageEngine } from '../storage/storageEngineHooks';
 
 const PREFIX = '@REVISIT_COMMS';
 
@@ -17,6 +18,8 @@ export function IframeController({ currentConfig, provState, answers }: { curren
   const dispatch = useDispatch();
   const identifier = useCurrentIdentifier();
   const participantId = useStoreSelector((state) => state.participantId);
+  const allAnswers = useStoreSelector((state) => state.answers);
+  const { storageEngine } = useStorageEngine();
 
   const ref = useRef<HTMLIFrameElement>(null);
 
@@ -56,11 +59,20 @@ export function IframeController({ currentConfig, provState, answers }: { curren
   }, [answers, sendMessage]);
 
   useEffect(() => {
-    const handler = (e: MessageEvent) => {
+    const handler = async (e: MessageEvent) => {
       const { data } = e;
       if (typeof data === 'object' && iframeId === data.iframeId) {
         switch (data.type) {
           case `${PREFIX}/WINDOW_READY`:
+            if (currentConfig.path.endsWith('sona_completion.html') && storageEngine) {
+              try {
+                await storageEngine.saveAnswers(allAnswers);
+                await storageEngine.flushAnswers();
+              } catch {
+                sendMessage('STUDY_DATA', { ...(currentConfig.parameters || {}), __revisit: { participantId, persistenceError: true } });
+                break;
+              }
+            }
             sendMessage('STUDY_DATA', {
               ...(currentConfig.parameters || {}),
               __revisit: {
@@ -99,7 +111,7 @@ export function IframeController({ currentConfig, provState, answers }: { curren
     window.addEventListener('message', handler);
 
     return () => window.removeEventListener('message', handler);
-  }, [storeDispatch, dispatch, iframeId, currentConfig, sendMessage, setReactiveAnswers, updateResponseBlockValidation, identifier, participantId, currentComponent]);
+  }, [storeDispatch, dispatch, iframeId, currentConfig, sendMessage, setReactiveAnswers, updateResponseBlockValidation, identifier, participantId, currentComponent, storageEngine, allAnswers]);
 
   return (
     <iframe

@@ -1,8 +1,9 @@
 import os
 import unittest
+from datetime import timedelta
 from unittest.mock import patch
 
-from withdrawal_store import COLORS, WithdrawalStore, score_guess, support_available, support_phase
+from withdrawal_store import COLORS, WithdrawalStore, score_guess, support_available, support_phase, utc_now
 
 
 class WithdrawalStoreTests(unittest.TestCase):
@@ -74,11 +75,22 @@ class WithdrawalStoreTests(unittest.TestCase):
         credited = self.store.mark_part_credited(participant, 1)
         self.assertEqual(credited["current_session"], 2)
         self.assertEqual(credited["credited_parts"], [1])
-        next_state = self.store.public_state(credited, 2)
+        with self.assertRaises(PermissionError):
+            self.store.public_state(credited, 2)
+        with self.assertRaises(PermissionError):
+            self.store.submit_guess(participant, "advisor", ["Blue"] * 4, 2)
+        with patch('withdrawal_store.utc_now', return_value=utc_now() + timedelta(hours=24, seconds=1)):
+            next_state = self.store.public_state(credited, 2)
         self.assertEqual(next_state["game"]["session"], 2)
 
     def test_future_sona_part_cannot_start_early(self) -> None:
         record = self.store.get_or_create("participant-4", "control")
+        with self.assertRaises(PermissionError):
+            self.store.public_state(record, 2)
+
+    def test_legacy_record_without_unlock_timestamp_fails_closed(self) -> None:
+        record = self.store.get_or_create('legacy-participant', 'advisor')
+        record['current_session'] = 2
         with self.assertRaises(PermissionError):
             self.store.public_state(record, 2)
 

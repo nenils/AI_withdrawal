@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourcePath = path.join(root, 'public/HAIC_study/assets/config.json');
@@ -136,6 +137,7 @@ const finalMeasures = [
   '$haic-withdrawal.components.Ownership',
 ];
 
+const requirements = {};
 for (let part = 1; part <= 4; part += 1) {
   const partComponents = part === 1
     ? ['$haic-withdrawal.components.introduction', '$haic-withdrawal.components.game-tutorial-video']
@@ -149,6 +151,11 @@ for (let part = 1; part <= 4; part += 1) {
   if (part === 1) partComponents.push('$haic-withdrawal.components.demographics');
   if (part === 4) partComponents.push(...finalMeasures);
   partComponents.push('sona-completion-part');
+  const scheduled = partComponents.filter((name) => typeof name === 'string' && name.startsWith('$haic-withdrawal.components.'))
+    .map((name) => components[name.replace('$haic-withdrawal.components.', '')]);
+  requirements[part] = scheduled.flatMap((component) => component.response.filter((item) => item.type !== 'textOnly' && item.required !== false)
+    .map((item) => ({ id: item.id, type: item.type })));
+  if (part === 4) requirements[part].push(...components['control-trust-willingness'].response.map((item) => ({ id: item.id, type: item.type, supportedOnly: true })));
 
   const config = {
     $schema: 'https://raw.githubusercontent.com/revisit-studies/study/v2.2.0/src/parser/StudyConfigSchema.json',
@@ -184,3 +191,5 @@ for (let part = 1; part <= 4; part += 1) {
   fs.mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(path.join(outputDir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
 }
+fs.writeFileSync(path.join(root, 'services/haic_api/study_requirements.json'), `${JSON.stringify(requirements, null, 2)}\n`);
+execFileSync(process.execPath, [path.join(root, 'node_modules/vite-node/vite-node.mjs'), 'scripts/generate_server_configs.ts'], { cwd: root, stdio: 'inherit' });

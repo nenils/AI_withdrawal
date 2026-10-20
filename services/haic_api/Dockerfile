@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py rl_model.py study_export.py withdrawal_store.py debug_participant.py ./
+COPY app.py rl_model.py study_export.py withdrawal_store.py debug_participant.py participant_access.py completion_validation.py study_admin.py study_requirements.json study_configs.json ./
 COPY models ./models
 
 EXPOSE 8000

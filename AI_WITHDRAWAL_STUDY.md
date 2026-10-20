@@ -83,6 +83,8 @@ SONA credit confirmation is automatic, hidden and required: participants do not 
 
 ## Data and enforcement
 
+Security deployment now requires `supabase/security_hardening.sql` and Supabase Anonymous Sign-Ins; see `SECURITY_DEPLOYMENT.md` before updating the VM. Participant questionnaire storage is owner-scoped, analysis requires an explicitly authorized researcher account, and the API requires a signed same-origin participant session. The next ordinary session is locked for 24 hours after credit. Credit is granted only after server-side verification of the saved required questionnaire responses; wrong attention-check responses remain accepted and flagged for analysis. Pending questionnaire uploads are flushed before the credit page starts. AI operations use a reference-counted busy state to prevent overlapping requests after automatic advice begins.
+
 The API owns random codes, scores guesses, enforces attempt limits, fixes the condition assignment, and validates part order. `withdrawal_participants` stores longitudinal state, credited parts, and completed game histories. `withdrawal_events` stores timestamped interaction, support, mouse, click, keyboard, and visibility events. Standard reVISit/Supabase response collection stores questionnaire data separately for each `HAIC_part_N` study ID.
 
 Game completion does not advance the participant. The participant first completes the part's questionnaires; the SONA completion component then grants credit and advances the API record to the next part.

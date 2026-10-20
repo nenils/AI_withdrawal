@@ -30,8 +30,14 @@
     var partNumber = null;
     var status = document.getElementById("status");
     var retry = document.getElementById("retry");
+    var persistenceError = false;
 
     function submit() {
+      if (persistenceError) {
+        status.className = "error";
+        status.textContent = "Your answers could not be uploaded. Keep this tab open, check your connection, and reload to retry before claiming credit.";
+        return;
+      }
       retry.hidden = true;
       status.className = "";
       status.innerHTML = "<p>Please keep this page open while your SONA credit is granted.</p>";
@@ -60,6 +66,7 @@
     retry.onclick = submit;
     Revisit.onDataReceive(function (data) {
       participantId = data.__revisit && data.__revisit.participantId;
+      persistenceError = Boolean(data.__revisit && data.__revisit.persistenceError);
       partNumber = Number(data.partNumber);
       if (!participantId || partNumber < 1 || partNumber > 4) {
         status.className = "error";

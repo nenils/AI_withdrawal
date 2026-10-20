@@ -15,7 +15,7 @@ import { useStoreSelector, useStoreDispatch, useStoreActions } from '../store/st
 import { AnalysisFooter } from './interface/AnalysisFooter';
 import { useIsAnalysis } from '../store/hooks/useIsAnalysis';
 import { studyComponentToIndividualComponent } from '../utils/handleComponentInheritance';
-import { useCurrentComponent } from '../routes/utils';
+import { useCurrentComponent, useStudyId } from '../routes/utils';
 import { ResolutionWarning } from './interface/ResolutionWarning';
 import { useFetchStylesheet } from '../utils/fetchStylesheet';
 import { ScreenRecordingContext, useScreenRecording } from '../store/hooks/useScreenRecording';
@@ -27,6 +27,7 @@ export function StepRenderer() {
   const { toggleStudyBrowser } = useStoreActions();
 
   const isAnalysis = useIsAnalysis();
+  const studyId = useStudyId();
   const studyConfig = useStudyConfig();
   const currentComponent = useCurrentComponent();
 
@@ -124,7 +125,8 @@ export function StepRenderer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { studyNavigatorEnabled, dataCollectionEnabled } = useMemo(() => modes, [modes]);
+  const { dataCollectionEnabled } = modes;
+  const studyNavigatorEnabled = modes.studyNavigatorEnabled && (isAnalysis || !/^HAIC_part_[1-4]$/.test(studyId));
 
   // No default value for withSidebar since it's a required field in uiConfig
   const sidebarOpen = useMemo(() => ((analysisHasScreenRecording && analysisCanPlayScreenRecording) ? false : (componentConfig.withSidebar ?? studyConfig.uiConfig.withSidebar)), [componentConfig, studyConfig, analysisHasScreenRecording, analysisCanPlayScreenRecording]);
@@ -147,7 +149,7 @@ export function StepRenderer() {
           footer={{ height: (isAnalysis ? 75 : 0) + (analysisHasAudio ? 50 : 0) }}
         >
           <AppNavBar />
-          <AppAside />
+          {(isAnalysis || studyNavigatorEnabled) && <AppAside />}
           {showTitleBar && (
           <AppHeader studyNavigatorEnabled={studyNavigatorEnabled} dataCollectionEnabled={dataCollectionEnabled} screenRecording={isScreenRecording} screenWithAudioRecording={screenWithAudioRecording} />
           )}

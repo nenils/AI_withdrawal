@@ -6,7 +6,7 @@ import threading
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 
@@ -184,6 +184,8 @@ class WithdrawalStore:
         record: dict[str, Any],
         expected_session: int | None = None,
     ) -> dict[str, Any]:
+        if expected_session is None or expected_session == record["current_session"]:
+            self.check_session_available(record)
         if record.get("completed_at") or record.get("game_state"):
             return record
         if expected_session is not None and expected_session != record["current_session"]:
@@ -195,6 +197,17 @@ class WithdrawalStore:
         record["game_state"] = create_game_state(record["current_session"], now)
         record["updated_at"] = iso(now)
         return self.save(record)
+
+    def check_session_available(self, record: dict[str, Any]) -> None:
+        if record["participant_id"].startswith("debug-"):
+            return
+        available = record.get("next_session_available_at")
+        if not available and record['current_session'] > 1 and not record.get('completed_at'):
+            timestamps = [item.get('creditedAt') for item in record.get('completed_sessions', []) if item.get('creditedAt')]
+            base = max(timestamps) if timestamps else record['updated_at']
+            available = iso(datetime.fromisoformat(base.replace('Z', '+00:00')) + timedelta(hours=24))
+        if available and utc_now() < datetime.fromisoformat(available.replace("Z", "+00:00")):
+            raise PermissionError(f"The next session is available at {available}. Please return using SONA at that time.")
 
     def public_state(
         self,
@@ -346,5 +359,6 @@ class WithdrawalStore:
                 record["completed_at"] = iso(now)
             else:
                 record["current_session"] = part_number + 1
+                record["next_session_available_at"] = iso(now + timedelta(hours=24))
             record["updated_at"] = iso(now)
             return self.save(record)

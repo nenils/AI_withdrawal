@@ -1,0 +1,262 @@
+{
+  "1": [
+    {
+      "id": "cr1",
+      "type": "likert"
+    },
+    {
+      "id": "cr2",
+      "type": "likert"
+    },
+    {
+      "id": "cr3",
+      "type": "likert"
+    },
+    {
+      "id": "cr4",
+      "type": "likert"
+    },
+    {
+      "id": "nasa-tlx-mental-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-physical-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-temporal-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-performance",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-effort",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-frustration",
+      "type": "slider"
+    },
+    {
+      "id": "demographics-age",
+      "type": "dropdown"
+    },
+    {
+      "id": "demographics-gender",
+      "type": "dropdown"
+    },
+    {
+      "id": "demographics-ethnicity",
+      "type": "dropdown"
+    },
+    {
+      "id": "demographics-education",
+      "type": "dropdown"
+    },
+    {
+      "id": "demographics-job-sector",
+      "type": "checkbox"
+    },
+    {
+      "id": "demographics-household-income",
+      "type": "dropdown"
+    },
+    {
+      "id": "bot-check-day-after-monday",
+      "type": "shortText"
+    },
+    {
+      "id": "attention-check-session-1",
+      "type": "likert"
+    }
+  ],
+  "2": [
+    {
+      "id": "cr1",
+      "type": "likert"
+    },
+    {
+      "id": "cr2",
+      "type": "likert"
+    },
+    {
+      "id": "cr3",
+      "type": "likert"
+    },
+    {
+      "id": "cr4",
+      "type": "likert"
+    },
+    {
+      "id": "attention-check-session-2",
+      "type": "likert"
+    },
+    {
+      "id": "nasa-tlx-mental-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-physical-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-temporal-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-performance",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-effort",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-frustration",
+      "type": "slider"
+    }
+  ],
+  "3": [
+    {
+      "id": "cr1",
+      "type": "likert"
+    },
+    {
+      "id": "cr2",
+      "type": "likert"
+    },
+    {
+      "id": "cr3",
+      "type": "likert"
+    },
+    {
+      "id": "cr4",
+      "type": "likert"
+    },
+    {
+      "id": "nasa-tlx-mental-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-physical-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-temporal-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-performance",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-effort",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-frustration",
+      "type": "slider"
+    },
+    {
+      "id": "attention-check-session-3",
+      "type": "likert"
+    }
+  ],
+  "4": [
+    {
+      "id": "cr1",
+      "type": "likert"
+    },
+    {
+      "id": "cr2",
+      "type": "likert"
+    },
+    {
+      "id": "cr3",
+      "type": "likert"
+    },
+    {
+      "id": "cr4",
+      "type": "likert"
+    },
+    {
+      "id": "nasa-tlx-mental-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-physical-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-temporal-demand",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-performance",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-effort",
+      "type": "slider"
+    },
+    {
+      "id": "nasa-tlx-frustration",
+      "type": "slider"
+    },
+    {
+      "id": "ownership-task-solving-process",
+      "type": "likert"
+    },
+    {
+      "id": "ownership-outcome-shaped-by-decisions",
+      "type": "likert"
+    },
+    {
+      "id": "ownership-how-task-was-solved",
+      "type": "likert"
+    },
+    {
+      "id": "ownership-decisions",
+      "type": "likert"
+    },
+    {
+      "id": "ownership-game-outcome",
+      "type": "likert"
+    },
+    {
+      "id": "ownership-guesses-and-decisions",
+      "type": "likert"
+    },
+    {
+      "id": "ownership-outcome-mine-reversed",
+      "type": "likert"
+    },
+    {
+      "id": "attention-check-session-4",
+      "type": "likert"
+    },
+    {
+      "id": "willingness-to-depend-1",
+      "type": "likert",
+      "supportedOnly": true
+    },
+    {
+      "id": "willingness-to-depend-2",
+      "type": "likert",
+      "supportedOnly": true
+    },
+    {
+      "id": "willingness-to-depend-3",
+      "type": "likert",
+      "supportedOnly": true
+    },
+    {
+      "id": "willingness-to-depend-4",
+      "type": "likert",
+      "supportedOnly": true
+    }
+  ]
+}

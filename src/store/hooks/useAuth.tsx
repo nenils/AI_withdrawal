@@ -9,6 +9,7 @@ import { LoadingOverlay } from '@mantine/core';
 import { useStorageEngine } from '../../storage/storageEngineHooks';
 import { UserWrapped } from '../../storage/engines/types';
 import { isCloudStorageEngine } from '../../storage/engines/utils';
+import { SupabaseStorageEngine } from '../../storage/engines/SupabaseStorageEngine';
 
 // Defines default AuthContextValue
 interface AuthContextValue {
@@ -70,6 +71,11 @@ export function AuthProvider({ children } : { children: ReactNode }) {
 
   // Logs the user out by removing the user and navigating to '/login'
   const logout = async () => {
+    if (storageEngine instanceof SupabaseStorageEngine) {
+      await storageEngine.signOutResearcher();
+      setUser(nonLoadingNullUser);
+      return;
+    }
     const auth = getAuth();
     try {
       await signOut(auth);
@@ -86,6 +92,7 @@ export function AuthProvider({ children } : { children: ReactNode }) {
   };
 
   const verifyAdminStatus = async (inputUser: UserWrapped) => {
+    if (storageEngine instanceof SupabaseStorageEngine) return !!await storageEngine.researcherIdentity();
     if (storageEngine && isCloudStorageEngine(storageEngine)) {
       return await storageEngine.validateUser(inputUser, true);
     }
@@ -93,6 +100,16 @@ export function AuthProvider({ children } : { children: ReactNode }) {
   };
 
   useEffect(() => {
+    if (storageEngine instanceof SupabaseStorageEngine) {
+      let active = true;
+      const refresh = async () => {
+        const identity = await storageEngine.researcherIdentity().catch(() => null);
+        if (active) setUser({ user: identity, determiningStatus: false, isAdmin: !!identity, adminVerification: true });
+      };
+      refresh();
+      const unsubscribe = storageEngine.watchAuth(refresh);
+      return () => { active = false; unsubscribe(); };
+    }
     // Set initialUser
     setUser(loadingNullUser);
 
