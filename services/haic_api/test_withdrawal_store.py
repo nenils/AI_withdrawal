@@ -35,6 +35,27 @@ class WithdrawalStoreTests(unittest.TestCase):
         self.assertFalse(support_available("control", 2, 1))
         self.assertEqual(support_phase("advisor", 4, 2), "withdrawn")
 
+    def test_all_sixteen_games_keep_the_original_support_schedule(self) -> None:
+        for condition in ("control", "advisor", "judge"):
+            participant = f"schedule-{condition}"
+            for session in range(1, 5):
+                with patch('withdrawal_store.utc_now', return_value=utc_now() + timedelta(days=session)):
+                    record = self.store.get_or_create(participant, condition)
+                    for game in range(1, 5):
+                        state = self.store.public_state(record, session)
+                        expected = condition != "control" and (
+                            (session == 1 and game == 4) or session in (2, 3) or (session == 4 and game == 1)
+                        )
+                        self.assertEqual(state["supportAvailable"], expected, (condition, session, game))
+                        self.assertEqual(state["game"]["round"], game)
+                        secret = record["game_state"]["secrets"][game - 1]
+                        result = self.store.submit_guess(participant, condition, secret, session)
+                        record = self.store.get(participant)
+                    self.assertTrue(result["sessionFinished"])
+                    record = self.store.mark_part_credited(participant, session)
+            self.assertIsNotNone(record["completed_at"])
+            self.assertEqual(record["credited_parts"], [1, 2, 3, 4])
+
     def test_condition_is_fixed_after_assignment(self) -> None:
         self.store.get_or_create("participant-1", "advisor")
         with self.assertRaises(ValueError):
@@ -85,12 +106,6 @@ class WithdrawalStoreTests(unittest.TestCase):
 
     def test_future_sona_part_cannot_start_early(self) -> None:
         record = self.store.get_or_create("participant-4", "control")
-        with self.assertRaises(PermissionError):
-            self.store.public_state(record, 2)
-
-    def test_legacy_record_without_unlock_timestamp_fails_closed(self) -> None:
-        record = self.store.get_or_create('legacy-participant', 'advisor')
-        record['current_session'] = 2
         with self.assertRaises(PermissionError):
             self.store.public_state(record, 2)
 

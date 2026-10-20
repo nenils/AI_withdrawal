@@ -1,5 +1,8 @@
 -- Run once in the Supabase Cloud SQL Editor for the AI withdrawal study.
 
+-- DEVELOPMENT / PILOT SETUP ONLY: the reVISit policies below allow shared
+-- anonymous access to questionnaire data. Restrict database/storage access
+-- and protect researcher routes before recruiting real participants.
 create table if not exists public.revisit (
   "createdAt" timestamptz not null default now(),
   "studyId" varchar not null,
@@ -9,23 +12,48 @@ create table if not exists public.revisit (
 );
 
 alter table public.revisit enable row level security;
-revoke all on public.revisit from anon, authenticated;
-grant all on public.revisit to service_role;
+grant select, insert, update, delete on public.revisit to anon, authenticated, service_role;
 
 drop policy if exists allow_revisit_read_write on public.revisit;
--- Then apply security_hardening.sql to enable owner-scoped participant access.
+create policy allow_revisit_read_write
+  on public.revisit
+  for all
+  to anon, authenticated, service_role
+  using (true)
+  with check (true);
 
 insert into storage.buckets (id, name, public)
 values ('revisit', 'revisit', false)
 on conflict (id) do update set public = excluded.public;
 
 drop policy if exists allow_revisit_storage_select on storage.objects;
+create policy allow_revisit_storage_select
+  on storage.objects
+  for select
+  to anon, authenticated, service_role
+  using (bucket_id = 'revisit');
 
 drop policy if exists allow_revisit_storage_insert on storage.objects;
+create policy allow_revisit_storage_insert
+  on storage.objects
+  for insert
+  to anon, authenticated, service_role
+  with check (bucket_id = 'revisit');
 
 drop policy if exists allow_revisit_storage_update on storage.objects;
+create policy allow_revisit_storage_update
+  on storage.objects
+  for update
+  to anon, authenticated, service_role
+  using (bucket_id = 'revisit')
+  with check (bucket_id = 'revisit');
 
 drop policy if exists allow_revisit_storage_delete on storage.objects;
+create policy allow_revisit_storage_delete
+  on storage.objects
+  for delete
+  to anon, authenticated, service_role
+  using (bucket_id = 'revisit');
 
 create table if not exists public.withdrawal_participants (
   participant_id text primary key,

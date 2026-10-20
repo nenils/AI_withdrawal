@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
 const sourcePath = path.join(root, 'public/HAIC_study/assets/config.json');
@@ -192,4 +191,3 @@ for (let part = 1; part <= 4; part += 1) {
   fs.writeFileSync(path.join(outputDir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
 }
 fs.writeFileSync(path.join(root, 'services/haic_api/study_requirements.json'), `${JSON.stringify(requirements, null, 2)}\n`);
-execFileSync(process.execPath, [path.join(root, 'node_modules/vite-node/vite-node.mjs'), 'scripts/generate_server_configs.ts'], { cwd: root, stdio: 'inherit' });

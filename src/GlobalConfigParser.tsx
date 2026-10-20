@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { ModalsProvider } from '@mantine/modals';
-import { AppShell, Alert } from '@mantine/core';
+import { AppShell } from '@mantine/core';
 import { ConfigSwitcher } from './components/ConfigSwitcher';
 import { Shell } from './components/Shell';
 import { parseGlobalConfig } from './parser/parser';
@@ -31,7 +31,6 @@ async function fetchGlobalConfigArray() {
 export function GlobalConfigParser() {
   const [globalConfig, setGlobalConfig] = useState<Nullable<GlobalConfig>>(null);
   const [studyConfigs, setStudyConfigs] = useState<Record<string, ParsedConfig<StudyConfig> | null>>({});
-  const [storageError, setStorageError] = useState('');
 
   useEffect(() => {
     async function fetchData() {
@@ -56,12 +55,8 @@ export function GlobalConfigParser() {
     if (storageEngine !== undefined) return;
 
     async function fn() {
-      try {
-        const _storageEngine = await initializeStorageEngine();
-        setStorageEngine(_storageEngine);
-      } catch (error) {
-        setStorageError(error instanceof Error ? error.message : 'Study storage could not be initialized.');
-      }
+      const _storageEngine = await initializeStorageEngine();
+      setStorageEngine(_storageEngine);
     }
     fn();
   }, [setStorageEngine, storageEngine]);
@@ -79,7 +74,6 @@ export function GlobalConfigParser() {
     return false;
   };
 
-  if (storageError) return <Alert color="red" title="Study unavailable">{storageError}</Alert>;
   return globalConfig ? (
     <BrowserRouter basename={PREFIX}>
       <AuthProvider>

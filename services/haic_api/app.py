@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 import os
 import urllib.error
 import urllib.parse
@@ -7,14 +6,13 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from rl_model import MastermindRLModel
 from withdrawal_store import WithdrawalStore
-from participant_access import ParticipantAccess, COOKIE_NAME
 from completion_validation import validate_questionnaires
 from study_export import SupabaseExportSource
 
@@ -37,7 +35,6 @@ RL_MODEL = MastermindRLModel(RL_MODEL_PATH or None)
 MAX_LLM_MESSAGES_PER_ROUND = int(os.getenv("MAX_LLM_MESSAGES_PER_ROUND", "20"))
 LLM_MESSAGE_COUNTS: dict[tuple[str, int, int], int] = {}
 WITHDRAWAL_STORE = WithdrawalStore()
-PARTICIPANT_ACCESS = ParticipantAccess(WITHDRAWAL_STORE)
 ALLOWED_STUDY_ORIGINS = {
     STUDY_PUBLIC_URL,
     "http://iivm6.cit.tum.de",
@@ -56,7 +53,6 @@ app.add_middleware(
 
 
 class RLState(BaseModel):
-    participantId: str | None = None
     reason: str | None = None
     round: int = 1
     codeLength: int = 4
@@ -99,65 +95,6 @@ class WithdrawalEventsPayload(BaseModel):
 class SonaCompletionPayload(BaseModel):
     participantId: str = Field(min_length=1, max_length=128)
     partNumber: int = Field(ge=1, le=4)
-
-
-def require_participant(request: Request, participant_id: str | None):
-    if not WITHDRAWAL_STORE.persistent:
-        return
-    try:
-        if not participant_id:
-            raise PermissionError("Participant identity is required")
-        user_id = PARTICIPANT_ACCESS.read_cookie(request.cookies.get(COOKIE_NAME))
-        PARTICIPANT_ACCESS.require_owner(user_id, participant_id)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-
-
-class AccessPayload(BaseModel):
-    participantId: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
-
-
-@app.post("/api/withdrawal/access")
-def bind_participant(payload: AccessPayload, request: Request, response: Response):
-    if not WITHDRAWAL_STORE.persistent:
-        raise HTTPException(status_code=503, detail="Persistent storage is required")
-    try:
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-        user_id = PARTICIPANT_ACCESS.user_for_token(token)
-        PARTICIPANT_ACCESS.bind(user_id, payload.participantId)
-        response.set_cookie(COOKIE_NAME, PARTICIPANT_ACCESS.issue_cookie(user_id), httponly=True,
-                            secure=STUDY_PUBLIC_URL.startswith("https://"), samesite="strict", max_age=28800)
-        return {"authorized": True}
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-
-
-@app.post("/api/withdrawal/logout")
-def clear_session(response: Response):
-    response.delete_cookie(COOKIE_NAME, secure=STUDY_PUBLIC_URL.startswith("https://"), httponly=True, samesite="strict")
-    return {"signedOut": True}
-
-
-class ConfigArchivePayload(BaseModel):
-    studyId: str = Field(pattern=r"^(prod-|dev-)HAIC_part_[1-4]$")
-    configHash: str = Field(pattern=r"^[a-f0-9]{64}$")
-
-
-@app.post("/api/study/archive-config")
-def archive_config(payload: ConfigArchivePayload, request: Request):
-    try:
-        PARTICIPANT_ACCESS.user_for_token(request.headers.get("Authorization", "").removeprefix("Bearer "))
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    approved = json.loads(Path(__file__).with_name('study_configs.json').read_text())[payload.studyId.split('-', 1)[1]]
-    if payload.configHash != approved['hash']:
-        raise HTTPException(status_code=409, detail="The study configuration has changed. Please reload this page.")
-    path = f"{payload.studyId}/configs/{payload.configHash}_config"
-    upload = urllib.request.Request(f"{WITHDRAWAL_STORE.base_url}/storage/v1/object/revisit/{path}",
-        data=approved['content'].encode(), method="POST", headers={"apikey": WITHDRAWAL_STORE.service_key,
-        "Authorization": f"Bearer {WITHDRAWAL_STORE.service_key}", "Content-Type": "application/json", "x-upsert": "true"})
-    with urllib.request.urlopen(upload, timeout=30):
-        return {"saved": True}
 
 
 def grant_sona_credit(part_number: int, survey_code: str) -> None:
@@ -262,8 +199,7 @@ def health() -> dict[str, Any]:
 
 
 @app.post("/api/withdrawal/state")
-def withdrawal_state(payload: WithdrawalStatePayload, request: Request) -> dict[str, Any]:
-    require_participant(request, payload.participantId)
+def withdrawal_state(payload: WithdrawalStatePayload) -> dict[str, Any]:
     try:
         record = WITHDRAWAL_STORE.get_or_create(payload.participantId, payload.condition)
         return WITHDRAWAL_STORE.public_state(record, payload.partNumber)
@@ -276,8 +212,7 @@ def withdrawal_state(payload: WithdrawalStatePayload, request: Request) -> dict[
 
 
 @app.post("/api/withdrawal/guess")
-def withdrawal_guess(payload: WithdrawalGuessPayload, request: Request) -> dict[str, Any]:
-    require_participant(request, payload.participantId)
+def withdrawal_guess(payload: WithdrawalGuessPayload) -> dict[str, Any]:
     try:
         return WITHDRAWAL_STORE.submit_guess(
             payload.participantId,
@@ -294,8 +229,7 @@ def withdrawal_guess(payload: WithdrawalGuessPayload, request: Request) -> dict[
 
 
 @app.post("/api/withdrawal/events")
-def withdrawal_events(payload: WithdrawalEventsPayload, request: Request) -> dict[str, int]:
-    require_participant(request, payload.participantId)
+def withdrawal_events(payload: WithdrawalEventsPayload) -> dict[str, int]:
     try:
         return {"accepted": WITHDRAWAL_STORE.append_events(payload.participantId, payload.events)}
     except RuntimeError as exc:
@@ -303,8 +237,7 @@ def withdrawal_events(payload: WithdrawalEventsPayload, request: Request) -> dic
 
 
 @app.post("/api/sona/complete-part")
-def complete_sona_part(payload: SonaCompletionPayload, request: Request) -> dict[str, Any]:
-    require_participant(request, payload.participantId)
+def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
     try:
         record = WITHDRAWAL_STORE.part_ready_for_credit(
             payload.participantId,
@@ -351,14 +284,12 @@ def complete_prolific() -> RedirectResponse:
 
 
 @app.post("/api/rl/predict")
-def predict_rl(state: RLState, request: Request) -> dict[str, Any]:
-    require_participant(request, state.participantId)
+def predict_rl(state: RLState) -> dict[str, Any]:
     return RL_MODEL.predict(state)
 
 
 @app.post("/api/llm/chat")
-def llm_chat(payload: ChatPayload, request: Request) -> dict[str, Any]:
-    require_participant(request, payload.participantId)
+def llm_chat(payload: ChatPayload) -> dict[str, Any]:
     participant_id = (payload.participantId or "anonymous").strip()[:128] or "anonymous"
     study_round = payload.studyRound or 0
     study_session = payload.studySession or 0

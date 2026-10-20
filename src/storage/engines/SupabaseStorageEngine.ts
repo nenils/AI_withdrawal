@@ -5,67 +5,12 @@ import {
 
 export class SupabaseStorageEngine extends StorageEngine {
   private supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
-  private boundParticipants = new Map<string, Promise<void>>();
-
-  private get withdrawalStudy() { return /^HAIC_part_[1-4]$/.test(this.studyId || ''); }
-
-  async researcherIdentity() {
-    const { data: { user } } = await this.supabase.auth.getUser();
-    if (!user || user.is_anonymous) return null;
-    const { data, error } = await this.supabase.from('study_researchers').select('user_id').eq('user_id', user.id);
-    return !error && data?.length ? { uid: user.id, email: user.email || '', name: user.email || '' } : null;
-  }
-
-  async signInResearcher(email: string, password: string) {
-    const { error } = await this.supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    if (!await this.researcherIdentity()) {
-      await this.supabase.auth.signOut();
-      throw new Error('This account is not an authorized study researcher.');
-    }
-  }
-
-  async signOutResearcher() {
-    await fetch('/api/withdrawal/logout', { method: 'POST' });
-    await this.supabase.auth.signOut();
-    this.boundParticipants.clear();
-  }
-
-  watchAuth(callback: () => void) {
-    const { data } = this.supabase.auth.onAuthStateChange(() => { setTimeout(callback, 0); });
-    return () => data.subscription.unsubscribe();
-  }
-
-  private async authorizedPost(path: string, body: unknown) {
-    const { data: { session } } = await this.supabase.auth.getSession();
-    if (!session) throw new Error('Please reopen the study link to sign in.');
-    const response = await fetch(path, { method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body) });
-    if (!response.ok) throw new Error((await response.json()).detail || 'Study access could not be confirmed.');
-  }
-
-  async getCurrentParticipantId(urlParticipantId?: string) {
-    const participantId = await super.getCurrentParticipantId(urlParticipantId);
-    if (this.withdrawalStudy) {
-      if (!this.boundParticipants.has(participantId)) {
-        this.boundParticipants.set(participantId, this.authorizedPost('/api/withdrawal/access', { participantId }).catch((error) => {
-          this.boundParticipants.delete(participantId);
-          throw error;
-        }));
-      }
-      await this.boundParticipants.get(participantId);
-    }
-    return participantId;
-  }
 
   constructor(testing: boolean = false) {
     super('supabase', testing);
   }
 
   protected async _getFromStorage<T extends StorageObjectType>(prefix: string, type: T, studyId?: string) {
-    if (this.withdrawalStudy && type === 'sequenceArray') {
-      return this.localForage.getItem<StorageObject<T>>(`secure-sequence/${this.studyId}`);
-    }
     const { data, error } = await this.supabase.storage
       .from('revisit')
       .download(`${this.collectionPrefix}${studyId || this.studyId}/${prefix}_${type}`, {}, type === 'participantData' ? { cache: 'no-store' } : {});
@@ -86,16 +31,6 @@ export class SupabaseStorageEngine extends StorageEngine {
 
   protected async _pushToStorage<T extends StorageObjectType>(prefix: string, type: T, objectToUpload: StorageObject<T>) {
     await this.verifyStudyDatabase();
-    if (this.withdrawalStudy && type === 'sequenceArray') {
-      await this.localForage.setItem(`secure-sequence/${this.studyId}`, objectToUpload);
-      return;
-    }
-    if (this.withdrawalStudy && type === 'config') {
-      await this.authorizedPost('/api/study/archive-config', {
-        studyId: `${this.collectionPrefix}${this.studyId}`, configHash: prefix.split('/')[1],
-      });
-      return;
-    }
 
     let uploadObject: Blob | Buffer<ArrayBuffer> = new Blob();
     if (objectToUpload instanceof Blob) {
@@ -120,7 +55,6 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   protected async _deleteFromStorage<T extends StorageObjectType>(prefix: string, type: T) {
-    if (this.withdrawalStudy && type === 'sequenceArray') { await this.localForage.removeItem(`secure-sequence/${this.studyId}`); return; }
     await this.verifyStudyDatabase();
     const { error } = await this.supabase.storage
       .from('revisit')
@@ -133,7 +67,7 @@ export class SupabaseStorageEngine extends StorageEngine {
 
   protected async _cacheStorageObject<T extends StorageObjectType>(prefix: string, type: T) {
     // Participant answers remain mutable and must not receive immutable-asset caching.
-    if (type === 'participantData' || (this.withdrawalStudy && type === 'config')) return;
+    if (type === 'participantData') return;
     await this.verifyStudyDatabase();
     // Download the existing object
     const { data, error: downloadError } = await this.supabase.storage
@@ -162,7 +96,6 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   protected async _verifyStudyDatabase() {
-    if (this.withdrawalStudy) return;
     const { error } = await this.supabase
       .from('revisit')
       .select('*')
@@ -173,7 +106,6 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   protected async _getCurrentConfigHash() {
-    if (this.withdrawalStudy) return this.localForage.getItem<string>(`secure-config-hash/${this.studyId}`);
     await this.verifyStudyDatabase();
     const { data } = await this.supabase
       .from('revisit')
@@ -185,7 +117,6 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   protected async _setCurrentConfigHash(configHash: string) {
-    if (this.withdrawalStudy) { await this.localForage.setItem(`secure-config-hash/${this.studyId}`, configHash); return; }
     await this.verifyStudyDatabase();
     // set the config hash in the study collection by patching the document
     await this.supabase
@@ -365,11 +296,7 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   async initializeStudyDb(studyId: string) {
-    this.studyId = studyId;
-    const { data: { session } } = await this.supabase.auth.getSession();
-    const { error } = session ? { error: null } : await this.supabase.auth.signInAnonymously();
-    if (error) throw new Error('Study sign-in failed. Please contact the researcher.');
-    if (this.withdrawalStudy) return;
+    const { error } = await this.supabase.auth.signInAnonymously();
 
     // Write a row into the revisit table for the study
     const { error: schemaError } = await this.supabase
@@ -390,11 +317,6 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   async connect() {
-    const { data: { session } } = await this.supabase.auth.getSession();
-    if (!session) {
-      const { error } = await this.supabase.auth.signInAnonymously();
-      if (error) throw new Error('Supabase anonymous sign-in must be enabled for study participants.');
-    }
     return new Promise<void>((resolve, reject) => {
       // Check if the Supabase client is connected
       if (this.supabase) {
@@ -420,7 +342,7 @@ export class SupabaseStorageEngine extends StorageEngine {
       // get the metadata field from the data object
       const metadata = data[0].data;
       if (metadata) {
-        return /^HAIC_part_[1-4]$/.test(studyId) ? { ...metadata, studyNavigatorEnabled: false, analyticsInterfacePubliclyAccessible: false } : metadata;
+        return metadata;
       }
     }
 
@@ -429,7 +351,6 @@ export class SupabaseStorageEngine extends StorageEngine {
       studyNavigatorEnabled: false,
       analyticsInterfacePubliclyAccessible: false,
     };
-    if (/^HAIC_part_[1-4]$/.test(studyId)) return defaultModes;
     await this.supabase
       .from('revisit')
       .upsert({

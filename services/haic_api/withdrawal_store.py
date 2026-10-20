@@ -202,10 +202,6 @@ class WithdrawalStore:
         if record["participant_id"].startswith("debug-"):
             return
         available = record.get("next_session_available_at")
-        if not available and record['current_session'] > 1 and not record.get('completed_at'):
-            timestamps = [item.get('creditedAt') for item in record.get('completed_sessions', []) if item.get('creditedAt')]
-            base = max(timestamps) if timestamps else record['updated_at']
-            available = iso(datetime.fromisoformat(base.replace('Z', '+00:00')) + timedelta(hours=24))
         if available and utc_now() < datetime.fromisoformat(available.replace("Z", "+00:00")):
             raise PermissionError(f"The next session is available at {available}. Please return using SONA at that time.")
 

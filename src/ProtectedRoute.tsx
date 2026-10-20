@@ -3,7 +3,6 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { useAuth } from './store/hooks/useAuth';
 import { useStorageEngine } from './storage/storageEngineHooks';
-import { SupabaseStorageEngine } from './storage/engines/SupabaseStorageEngine';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -19,7 +18,6 @@ export function ProtectedRoute({ children, paramToCheck, paramCallback }: Protec
   const params = useParams();
 
   useEffect(() => {
-    if (storageEngine instanceof SupabaseStorageEngine) return;
     const verifyUser = async () => {
       // If isEnabled is false, re-check. Additional rechecking is required becasue this effect needs to trigger whenever there is manipulation from an unwanted user.
       if (isEnabled === false) {
@@ -61,7 +59,7 @@ export function ProtectedRoute({ children, paramToCheck, paramCallback }: Protec
     return <LoadingOverlay visible={user.determiningStatus || !storageEngine?.getEngine()} />;
   }
 
-  if ((isEnabled || storageEngine instanceof SupabaseStorageEngine) && !user.isAdmin && !user.determiningStatus) {
+  if (isEnabled && !user.isAdmin && !user.determiningStatus) {
     return <Navigate to="/login" />;
   }
   // eslint-disable-next-line react/jsx-no-useless-fragment

@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+const completionRequirements = JSON.parse(readFileSync(new URL('../services/haic_api/study_requirements.json', import.meta.url), 'utf8')) as Record<string, { id: string; supportedOnly?: boolean }[]>;
 
 function stateForPart(partNumber: number) {
   return {
@@ -73,7 +76,17 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await page.route('**/api/withdrawal/events', async (route) => {
       await route.fulfill({ json: { accepted: route.request().postDataJSON().events.length } });
     });
-    await page.route('**/api/sona/complete-part', (route) => route.fulfill({ json: { credited: true, studyCompleted: true } }));
+    let savedAnswersAtCredit: Record<string, unknown> = {};
+    await page.route('**/api/sona/complete-part', async (route) => {
+      savedAnswersAtCredit = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find((name) => name.includes('/participants/') && name.endsWith('_participantData'));
+        const document = key ? JSON.parse(localStorage.getItem(key)!) : { answers: {} };
+        return Object.assign({}, ...Object.values(document.answers)
+          .filter((item) => (item as { endTime: number }).endTime > 0)
+          .map((item) => (item as { answer: Record<string, unknown> }).answer));
+      });
+      await route.fulfill({ json: { credited: true, studyCompleted: true } });
+    });
     await page.goto(`/HAIC_part_4/?sona_id=questionnaire-${condition}`);
     await expect(page.getByText(/Component.*willingness-part.*not used deterministically/)).toHaveCount(0);
     await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
@@ -109,6 +122,10 @@ for (const condition of ['control', 'advisor', 'judge']) {
     for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) await radio.click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.frameLocator('iframe').getByText('Your final SONA credit has been granted.', { exact: false })).toBeVisible();
+    for (const field of completionRequirements['4']) {
+      if (field.supportedOnly && condition === 'control') continue;
+      expect(savedAnswersAtCredit[field.id], field.id).toBeDefined();
+    }
     await expect(page.getByRole('textbox')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
   });
@@ -198,6 +215,13 @@ test('incorrect Session 2 check does not block progress or reveal feedback', asy
 
 for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
   test(`SONA Part ${partNumber} route renders`, async ({ page }) => {
+    await page.addInitScript(({ part }) => {
+      localStorage.setItem(`revisit/prod-HAIC_part_${part}/modes`, JSON.stringify({
+        dataCollectionEnabled: true,
+        studyNavigatorEnabled: true,
+        analyticsInterfacePubliclyAccessible: false,
+      }));
+    }, { part: partNumber });
     await page.route('**/api/withdrawal/state', async (route) => {
       await route.fulfill({ json: stateForPart(partNumber) });
     });
@@ -215,5 +239,7 @@ for (let partNumber = 1; partNumber <= 4; partNumber += 1) {
       await expect(page.locator('.responseBlock-sidebar').getByText(/A correct color in a different position/)).toBeVisible();
     }
     await expect(page.getByText(/error loading config/i)).toHaveCount(0);
+    await expect(page.locator('.studyBrowser')).toHaveCount(0);
+    await expect(page.getByText('Study Browser', { exact: true })).toHaveCount(0);
   });
 }
