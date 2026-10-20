@@ -186,6 +186,37 @@ for (const fail of [false, true]) {
   });
 }
 
+test('low-autonomy strategy chat works with an empty or partial guess before review', async ({ page }) => {
+  const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+  let reviewRequests = 0;
+  await page.route('**/api/rl/predict', (route) => {
+    reviewRequests += 1;
+    return route.fulfill({ json: { guess: ['Blue', 'Green', 'Red', 'Yellow'] } });
+  });
+  await page.route('**/api/llm/chat', (route) => {
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({ json: { choices: [{ message: { content: 'Compare the possible feedback outcomes of your choices.' } }] } });
+  });
+  await openGame(page, activeState({ condition: 'judge', currentSession: 2, supportAvailable: true, supportPhase: 'supported' }));
+  await page.getByRole('button', { name: 'Review current guess' }).click();
+  await expect(page.locator('#aiOutput')).toContainText('Complete your proposed guess');
+  await page.getByLabel('Message AI').fill('How can I approach this game strategically?');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.locator('#chatHistory')).toContainText('Compare the possible feedback outcomes');
+  await expect(page.locator('#sendChat')).toBeEnabled();
+  await page.locator('#currentGuess button').first().click();
+  await page.getByLabel('Message AI').fill('How should I interpret a white peg?');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(reviewRequests).toBe(0);
+  for (const request of requests) {
+    expect(request.messages[0].content).toContain('autonomy is LOW');
+    expect(request.messages[0].content).toContain('answer strategy questions without requiring one');
+    expect(request.messages[0].content).not.toContain("Human's current proposal:");
+  }
+  await expect(page.locator('#applyAI')).toBeHidden();
+});
+
 test('high-autonomy chat refines and prefills its prediction with the same system policy', async ({ page }) => {
   const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
   await page.route('**/api/rl/predict', (route) => route.fulfill({ json: { guess: ['Blue', 'Green', 'Red', 'Yellow'] } }));

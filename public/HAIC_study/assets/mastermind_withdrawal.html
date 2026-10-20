@@ -430,6 +430,8 @@
           "Give the full four-color guess. Respond in one short explanatory sentence and always end with exactly: PREDICTION: [Color1, Color2, Color3, Color4]\n"
         : "Your autonomy is LOW: provide feedback only. You must not solve the task for the human.\n" +
           "Review the human's proposed guess and give feedback. Do not force changes; recommend adjustments only when reasonable.\n" +
+          "You may discuss general strategy, rules, and the human's reasoning before they enter a complete guess or request a review.\n" +
+          "If no complete proposal is available, answer strategy questions without requiring one and without supplying a full guess.\n" +
           "Keep the human responsible for deciding and entering the final guess.\n" +
           "Do NOT output a full four-color guess or replacement guess, even when asked. Do not output PREDICTION or FINAL GUESS.\n" +
           "Respond in one short sentence.\n";
@@ -485,10 +487,6 @@
       if (busy || !state || !state.supportAvailable || !state.game) return;
       var message = el("chatInput").value.trim();
       if (!message) return;
-      if (condition === "judge" && currentGuess.some(function (value) { return !value; })) {
-        el("status").textContent = "Complete your proposed guess before messaging AI.";
-        return;
-      }
       var context = buildSupportSystemPrompt(modelDiagnosticGuess, currentGuess.every(Boolean) ? currentGuess.slice() : null);
       setBusy(true);
       appendChat("user", message);
