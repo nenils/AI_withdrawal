@@ -380,7 +380,6 @@
       var feedbackHistory = {};
       state.game.guesses.forEach(function (item) { guessHistory[item.attempt] = item.guess; feedbackHistory[item.attempt] = item.feedback; });
       var payload = {
-        participantId: participantId,
         reason: condition === "advisor" ? "advisor suggestion" : "judge review",
         round: state.game.round,
         codeLength: 4,
