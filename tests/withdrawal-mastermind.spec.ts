@@ -288,3 +288,51 @@ test('controls remain locked until automatic advice after a submitted guess fini
   release!();
   await expect(page.locator('#sendChat')).toBeEnabled();
 });
+
+for (const condition of ['control', 'advisor', 'judge'] as const) {
+  for (const won of [true, false]) {
+    for (const finalGame of [false, true]) {
+      test(`reveals the correct code for two seconds: ${condition}, won=${won}, final=${finalGame}`, async ({ page }) => {
+        const time = new Date('2026-10-21T12:00:00Z');
+        await page.clock.install({ time });
+        await page.clock.pauseAt(time);
+        const initial = activeState({
+          condition, currentSession: 4, supportAvailable: !finalGame && condition !== 'control',
+          game: { session: 4, round: finalGame ? 4 : 1, rounds: [], guesses: [], startedAt: time.toISOString() },
+        });
+        const secret = ['Blue', 'Green', 'Blue', 'Yellow'];
+        await page.route('**/api/rl/predict', (route) => route.fulfill({ json: { guess: secret } }));
+        await page.route('**/api/llm/chat', (route) => route.fulfill({ json: {
+          choices: [{ message: { content: 'PREDICTION: [Blue, Green, Blue, Yellow]' } }],
+        } }));
+        await page.route('**/api/withdrawal/guess', (route) => route.fulfill({ json: {
+          ...initial, won, attempt: won ? 1 : 10, roundFinished: true,
+          sessionFinished: finalGame, partGameComplete: finalGame,
+          supportAvailable: false, revealedSecret: secret,
+          game: finalGame ? null : { ...initial.game, round: 2 },
+        } }));
+        await openGame(page, initial);
+        await expect(page.locator('#submitGuess')).toBeEnabled();
+        for (const peg of await page.locator('#currentGuess button').all()) await peg.click();
+        await page.locator('#submitGuess').click();
+        await expect(page.locator('#solution')).toBeVisible();
+        await expect(page.locator('#solutionResult')).toHaveText(won ? 'Code solved!' : 'Ten attempts reached.');
+        await expect(page.locator('#solutionCode .solution-color')).toHaveText(secret);
+        await expect(page.locator('#solutionCode .peg')).toHaveCount(4);
+        await expect(page.locator('#game')).toBeHidden();
+        await expect(page.locator('#complete')).toBeHidden();
+        await expect(page.locator('#submitGuess')).toBeDisabled();
+        await page.clock.runFor(1999);
+        await expect(page.locator('#solution')).toBeVisible();
+        await page.clock.runFor(1);
+        await expect(page.locator('#solution')).toBeHidden();
+        if (finalGame) {
+          await expect(page.locator('#complete')).toBeVisible();
+        } else {
+          await expect(page.locator('#game')).toBeVisible();
+          await expect(page.locator('#roundBadge')).toHaveText('Game 2/4');
+        }
+      });
+    }
+  }
+}
