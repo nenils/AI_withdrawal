@@ -50,6 +50,11 @@
     .status { min-height:24px; margin-top:12px; font-weight:650; }
     .error { color:#b42318; }
     .success { color:#18794e; }
+    .solution { text-align:center; padding:24px 0; }
+    .solution[hidden] { display:none; }
+    .solution-code { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }
+    .solution-color { display:flex; flex-direction:column; align-items:center; gap:8px; font-size:14px; }
+    .solution-color .peg { cursor:default; }
     @media (max-width:760px) { body{padding:10px}.layout{grid-template-columns:1fr}.support{position:static}.topbar{align-items:flex-start;flex-direction:column}.history-row{grid-template-columns:28px 1fr 90px}.peg{width:43px;height:43px} }
   </style>
 </head>
@@ -69,6 +74,12 @@
       <h2>This session's games are complete</h2>
       <p>Session confirmation code: <strong id="sessionConfirmationCode"></strong></p>
       <p>Please continue to the session questionnaire. SONA credit is granted only after the full part is submitted.</p>
+    </section>
+
+    <section id="solution" class="solution" aria-live="polite" hidden>
+      <h2 id="solutionResult"></h2>
+      <p>The correct code was:</p>
+      <div id="solutionCode" class="solution-code" aria-label="Correct code"></div>
     </section>
 
     <div id="game" hidden>
@@ -106,6 +117,7 @@
     "use strict";
     var COLORS = ["Blue", "Green", "Red", "Yellow", "Purple", "Orange"];
     var AI_PROMPT_VERSION = "upstream-autonomy-v1";
+    var SOLUTION_DISPLAY_MS = 2000;
     var COLOR_CSS = { Blue:"#2878d0", Green:"#2f9e44", Red:"#d64545", Yellow:"#f4c430", Purple:"#805ad5", Orange:"#ef7d22" };
     var condition = null;
     var participantId = null;
@@ -306,6 +318,7 @@
       el("loading").hidden = true;
       el("complete").hidden = true;
       el("game").hidden = true;
+      el("solution").hidden = true;
       el("sessionBadge").textContent = "Session " + state.currentSession + "/4";
       if (state.partGameComplete || state.partCredited) {
         el("sessionConfirmationCode").textContent = completionCode();
@@ -334,6 +347,27 @@
       el("sendChat").disabled = busy;
       el("applyAI").disabled = busy;
     }
+    function showSolution(result) {
+      el("game").hidden = true;
+      el("solutionResult").textContent = result.won ? "Code solved!" : "Ten attempts reached.";
+      el("solutionCode").textContent = "";
+      result.revealedSecret.forEach(function (color, index) {
+        var item = document.createElement("div");
+        item.className = "solution-color";
+        item.setAttribute("aria-label", "Position " + (index + 1) + ": " + color);
+        var peg = document.createElement("span");
+        peg.className = "peg";
+        peg.style.background = COLOR_CSS[color];
+        var label = document.createElement("span");
+        label.textContent = color;
+        item.appendChild(peg);
+        item.appendChild(label);
+        el("solutionCode").appendChild(item);
+      });
+      el("solution").hidden = false;
+      el("solution").scrollIntoView({block:"center"});
+      return new Promise(function (resolve) { setTimeout(resolve, SOLUTION_DISPLAY_MS); });
+    }
     function submitGuess() {
       if (busy) return;
       if (currentGuess.some(function (value) { return !value; })) {
@@ -354,13 +388,13 @@
           el("aiOutput").textContent = "AI output will appear here.";
           el("status").className = "status " + (next.won ? "success" : "");
           if (next.roundFinished) {
-            el("status").textContent = next.won ? "Code solved. The next game is ready." : "Ten attempts reached. The next game is ready.";
             event("roundCompleted", {won:next.won, attempts:next.attempt, revealedSecret:next.revealedSecret});
           } else {
             el("status").textContent = next.feedback.black + " black, " + next.feedback.white + " white";
           }
           if (next.sessionFinished) event("sessionCompleted", {completedSession:partNumber});
           flushEvents();
+          if (next.roundFinished) return showSolution(next).then(render);
           render();
         })
         .catch(function (error) { el("status").className="status error"; el("status").textContent=error.message; })
