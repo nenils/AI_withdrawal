@@ -91,6 +91,8 @@ The API owns random codes, scores guesses, enforces attempt limits, fixes the co
 
 Game completion does not advance the participant. The participant first completes the part's questionnaires; the SONA completion component then grants credit and advances the API record to the next part.
 
+After four games, the API generates a random, participant-and-session-specific confirmation code such as `MM-S1-A4B82C09E13F`, saved in that session's `confirmationCode`. It is displayed and recorded as `played-game`, remains stable on reload, and is checked against the participant's own completed session before SONA credit is granted. Existing completed test sessions receive a code when reopened; no schema migration is needed. These are completion receipts, not access passwords or a replacement for the pre-recruitment access controls above.
+
 ## Generated study configs
 
 The shared components are generated from `public/HAIC_study/assets/config.json` into `public/libraries/haic-withdrawal/config.json`. Four small study configs are generated under `public/HAIC_part_1` through `public/HAIC_part_4`.

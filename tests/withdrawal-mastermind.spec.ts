@@ -11,6 +11,7 @@ type StudyState = {
   completedSessions: unknown[];
   creditedParts: number[];
   partGameComplete: boolean;
+  sessionConfirmationCode: string | null;
   partCredited: boolean;
   supportAvailable: boolean;
   supportPhase: string;
@@ -59,6 +60,7 @@ function activeState(overrides: Partial<StudyState>): StudyState {
     completedSessions: [],
     creditedParts: [],
     partGameComplete: false,
+    sessionConfirmationCode: `MM-S${session}-0123456789AB`,
     partCredited: false,
     supportAvailable: false,
     supportPhase: 'pre_introduction',
@@ -156,7 +158,8 @@ test('shows and records a session confirmation code after four games', async ({ 
     partGameComplete: true,
   }));
 
-  await expect(page.getByText('MM-SESSION-1-COMPLETE', { exact: true })).toBeVisible();
+  await expect(page.getByText('MM-S1-0123456789AB', { exact: true })).toBeVisible();
+  await expect(page.getByText('MM-SESSION-1-COMPLETE', { exact: true })).toHaveCount(0);
   await expect(page.getByText('This session\'s games are complete', { exact: true })).toBeVisible();
 });
 

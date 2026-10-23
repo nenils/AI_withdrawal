@@ -36,6 +36,7 @@ class WithdrawalStoreTests(unittest.TestCase):
         self.assertEqual(support_phase("advisor", 4, 2), "withdrawn")
 
     def test_all_sixteen_games_keep_the_original_support_schedule(self) -> None:
+        codes = set()
         for condition in ("control", "advisor", "judge"):
             participant = f"schedule-{condition}"
             for session in range(1, 5):
@@ -48,13 +49,32 @@ class WithdrawalStoreTests(unittest.TestCase):
                         )
                         self.assertEqual(state["supportAvailable"], expected, (condition, session, game))
                         self.assertEqual(state["game"]["round"], game)
+                        self.assertIsNone(state["sessionConfirmationCode"])
                         secret = record["game_state"]["secrets"][game - 1]
                         result = self.store.submit_guess(participant, condition, secret, session)
                         record = self.store.get(participant)
                     self.assertTrue(result["sessionFinished"])
+                    code = result["sessionConfirmationCode"]
+                    self.assertRegex(code, rf"^MM-S{session}-[0-9A-F]{{12}}$")
+                    self.assertNotIn(code, codes)
+                    codes.add(code)
+                    reloaded = self.store.get_or_create(participant)
+                    self.assertEqual(self.store.public_state(reloaded, session)["sessionConfirmationCode"], code)
                     record = self.store.mark_part_credited(participant, session)
+                    self.assertEqual(self.store.public_state(record, session)["sessionConfirmationCode"], code)
             self.assertIsNotNone(record["completed_at"])
             self.assertEqual(record["credited_parts"], [1, 2, 3, 4])
+
+    def test_existing_completed_debug_session_gets_a_stable_individual_code(self):
+        record = self.store.get_or_create('debug-existing', 'control')
+        record['game_state'] = None
+        record['completed_sessions'] = [{'session': 1}]
+        self.store.save(record)
+        first = self.store.get_or_create('debug-existing')
+        code = self.store.public_state(first, 1)['sessionConfirmationCode']
+        self.assertRegex(code, r'^MM-S1-[0-9A-F]{12}$')
+        second = self.store.get_or_create('debug-existing')
+        self.assertEqual(self.store.public_state(second, 1)['sessionConfirmationCode'], code)
 
     def test_condition_is_fixed_after_assignment(self) -> None:
         self.store.get_or_create("participant-1", "advisor")

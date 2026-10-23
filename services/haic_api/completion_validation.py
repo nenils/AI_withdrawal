@@ -3,6 +3,21 @@ import math
 from pathlib import Path
 
 
+def validate_session_code(data, record, part):
+    expected = next((
+        session.get("confirmationCode")
+        for session in record.get("completed_sessions") or []
+        if session.get("session") == part
+    ), None)
+    submitted = next((
+        stored.get("answer", {}).get("played-game")
+        for stored in (data or {}).get("answers", {}).values()
+        if stored.get("endTime", -1) > 0 and "played-game" in (stored.get("answer") or {})
+    ), None)
+    if not expected or not isinstance(submitted, str) or submitted.strip() != expected:
+        raise ValueError("The session confirmation code does not match your completed games. Please use the code displayed at the end of your own game session.")
+
+
 def validate_questionnaires(data, part, condition, requirements=None):
     if requirements is None:
         requirements = json.loads(Path(__file__).with_name("study_requirements.json").read_text())

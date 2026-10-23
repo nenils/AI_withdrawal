@@ -143,6 +143,13 @@ class WithdrawalStore:
             if record:
                 if condition is not None and record["condition"] != condition:
                     raise ValueError("Participant condition does not match the original assignment")
+                changed = False
+                for session in record.get("completed_sessions") or []:
+                    if not session.get("confirmationCode"):
+                        session["confirmationCode"] = f"MM-S{session['session']}-{secrets.token_hex(6).upper()}"
+                        changed = True
+                if changed:
+                    return self.save(record)
                 return record
             now = utc_now()
             assigned_condition = condition or secrets.choice(sorted(CONDITIONS))
@@ -247,6 +254,11 @@ class WithdrawalStore:
             "completedSessions": copy.deepcopy(record.get("completed_sessions") or []),
             "creditedParts": copy.deepcopy(credited_parts),
             "partGameComplete": game_complete,
+            "sessionConfirmationCode": next((
+                item.get("confirmationCode")
+                for item in record.get("completed_sessions") or []
+                if item.get("session") == active_session
+            ), None),
             "partCredited": active_session in credited_parts,
             "supportAvailable": support_available(record["condition"], active_session, round_number),
             "supportPhase": support_phase(record["condition"], active_session, round_number),
@@ -305,6 +317,7 @@ class WithdrawalStore:
                     now = utc_now()
                     record.setdefault("completed_sessions", []).append({
                         "session": game["session"],
+                        "confirmationCode": f"MM-S{game['session']}-{secrets.token_hex(6).upper()}",
                         "startedAt": game["startedAt"],
                         "completedAt": iso(now),
                         "rounds": copy.deepcopy(game["rounds"]),

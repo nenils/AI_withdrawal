@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from rl_model import MastermindRLModel
 from withdrawal_store import WithdrawalStore
-from completion_validation import validate_questionnaires
+from completion_validation import validate_questionnaires, validate_session_code
 from study_export import SupabaseExportSource
 
 
@@ -249,6 +249,7 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
                 raise ValueError("Persistent questionnaire storage is required before granting credit")
             data = SupabaseExportSource().revisit_participant(payload.participantId, payload.partNumber)
             validate_questionnaires(data, payload.partNumber, record["condition"])
+            validate_session_code(data, record, payload.partNumber)
             if not payload.participantId.startswith("debug-"):
                 grant_sona_credit(payload.partNumber, payload.participantId)
             record = WITHDRAWAL_STORE.mark_part_credited(

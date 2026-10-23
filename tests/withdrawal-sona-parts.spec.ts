@@ -15,6 +15,7 @@ function stateForPart(partNumber: number) {
     completedSessions: [],
     creditedParts: Array.from({ length: partNumber - 1 }, (_, index) => index + 1),
     partGameComplete: false,
+    sessionConfirmationCode: `MM-S${partNumber}-0123456789AB`,
     partCredited: false,
     supportAvailable: false,
     supportPhase: 'never_supported',
@@ -90,7 +91,7 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await page.goto(`/HAIC_part_4/?sona_id=questionnaire-${condition}`);
     await expect(page.getByText(/Component.*willingness-part.*not used deterministically/)).toHaveCount(0);
     await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
-    await page.getByRole('textbox').fill('MM-SESSION-4-COMPLETE');
+    await page.getByRole('textbox').fill('MM-S4-0123456789AB');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByText('Thinking through the task was mainly my responsibility.')).toBeVisible();
     for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) {
@@ -204,7 +205,7 @@ test('incorrect Session 2 check does not block progress or reveal feedback', asy
   await page.route('**/api/withdrawal/events', (route) => route.fulfill({ json: { accepted: 1 } }));
   await page.goto('/HAIC_part_2/?sona_id=attention-wrong-answer');
   await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
-  await page.getByRole('textbox').fill('MM-SESSION-2-COMPLETE');
+  await page.getByRole('textbox').fill('MM-S2-0123456789AB');
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.getByText('For this item, please select 1.', { exact: false })).toBeVisible();
   for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) await radio.click();
