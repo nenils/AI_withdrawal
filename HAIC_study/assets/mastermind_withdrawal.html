@@ -140,7 +140,7 @@
 
     function el(id) { return document.getElementById(id); }
     function now() { return new Date().toISOString(); }
-    function completionCode() { return "MM-SESSION-" + partNumber + "-COMPLETE"; }
+    function completionCode() { return state.sessionConfirmationCode; }
     function event(type, data) {
       if (!participantId) return;
       var eventData = data || {};
@@ -247,7 +247,7 @@
         mastermindGame_completedSessions: JSON.stringify(state.completedSessions || []),
         mastermindGame_lastUpdatedAt: now()
       };
-      if (state.partGameComplete) answers["played-game"] = completionCode();
+      if (state.partGameComplete && completionCode()) answers["played-game"] = completionCode();
       try { Revisit.postAnswers(answers); } catch (ignore) {}
     }
     function trackSupportPhase() {
@@ -321,6 +321,7 @@
       el("solution").hidden = true;
       el("sessionBadge").textContent = "Session " + state.currentSession + "/4";
       if (state.partGameComplete || state.partCredited) {
+        if (!completionCode()) throw new Error("Your confirmation code could not be loaded. Please reload this page.");
         el("sessionConfirmationCode").textContent = completionCode();
         el("complete").hidden = false;
         postRevisit();
