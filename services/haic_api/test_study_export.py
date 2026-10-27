@@ -1,11 +1,53 @@
 import csv
+import io
 import json
 import tempfile
 import unittest
 import zipfile
+import urllib.error
 from pathlib import Path
+from unittest.mock import patch
 
-from study_export import create_export
+from study_export import create_export, SupabaseExportSource
+
+
+class SupabaseDownloadTests(unittest.TestCase):
+    def setUp(self):
+        with patch.dict("os.environ", {
+            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "test-key",
+        }):
+            self.source = SupabaseExportSource()
+
+    def download_error(self, status, body):
+        error = urllib.error.HTTPError(
+            "https://example.supabase.co/storage/v1/object/authenticated/revisit/test",
+            status, "Storage error", {}, io.BytesIO(body.encode()),
+        )
+        return patch("study_export.urllib.request.urlopen", side_effect=error)
+
+    def test_missing_objects_accept_both_http_status_formats(self):
+        for status, body in (
+            (404, ""),
+            (400, '{"statusCode":"404","error":"not_found","message":"Object not found","code":"NoSuchKey"}'),
+            (400, '{"code":"NoSuchKey"}'),
+            (400, '{"statusCode":404,"error":"not_found"}'),
+        ):
+            with self.subTest(status=status, body=body), self.download_error(status, body):
+                self.assertIsNone(self.source.revisit_participant("participant-1", 2))
+
+    def test_other_errors_still_abort_instead_of_hiding_missing_data(self):
+        for status, body in (
+            (400, '{"statusCode":"403","error":"AccessDenied"}'),
+            (400, "Bad request"),
+            (400, "[]"),
+            (401, '{"error":"Unauthorized"}'),
+            (403, '{"error":"Forbidden"}'),
+            (500, '{"code":"NoSuchKey"}'),
+        ):
+            with self.subTest(status=status, body=body), self.download_error(status, body):
+                with self.assertRaisesRegex(RuntimeError, f"download failed \\({status}\\)"):
+                    self.source.revisit_participant("participant-1", 2)
 
 
 class FakeExportSource:

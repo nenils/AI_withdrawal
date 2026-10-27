@@ -81,6 +81,19 @@ class SupabaseExportSource:
             if exc.code == 404:
                 return None
             detail = exc.read().decode("utf-8", errors="replace")
+            try:
+                storage_error = json.loads(detail)
+            except ValueError:
+                storage_error = {}
+            # Storage can wrap a missing-object 404 in an HTTP 400 response.
+            if exc.code == 400 and isinstance(storage_error, dict) and (
+                storage_error.get("code") == "NoSuchKey"
+                or (
+                    str(storage_error.get("statusCode")) == "404"
+                    and storage_error.get("error") == "not_found"
+                )
+            ):
+                return None
             raise RuntimeError(f"Supabase participant download failed ({exc.code}): {detail}") from exc
 
 
