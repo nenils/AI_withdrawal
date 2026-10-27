@@ -83,6 +83,20 @@ SONA credit confirmation is automatic, hidden and required: participants do not 
 
 ## Data and enforcement
 
+### Completed-session integrity
+
+Apply `supabase/submission_integrity.sql` in the Supabase SQL Editor before deploying this version. Use a maintenance window with no active participants, then rebuild both `study` and `haic-api`. Do not rerun `cloud_setup.sql` for this update. The migration adds an append-only `withdrawal_submissions` table and locks live questionnaire-file writes after submission or credit; it does not restore, delete, or rewrite existing answers. Existing anonymous/researcher access-control limitations discussed below remain separate.
+
+Before initializing a participant visit, the app asks the server whether that part is already submitted or credited. Credited parts display "You have already completed this session." and do not mount the game or questionnaires. Reopen events are appended separately to `withdrawal_events` as `completedSessionReopened` (or `submittedSessionReopened` while credit is pending). This also applies to debug records; use a newly generated debug participant to repeat a completed test.
+
+The first validated game/questionnaire document is preserved, with a server timestamp and SHA-256 digest, before SONA credit is requested. Credit retries use that same preserved document. If SONA is unavailable, a reopened link allows credit confirmation to be retried without reopening the forms. Database triggers protect the submission and original working file from later changes, including stale browser tabs. Analysis reads preserved answers when available; researcher tags and rejection flags are stored separately so annotation does not modify original answers.
+
+The combined ZIP now includes `sessions.csv`: `gameplay_duration_seconds` is elapsed server time between session start and the fourth game's completion, including pauses and transitions. `game_page_visit_duration_ms` is the separately recorded reVISit game-page duration. The two measures must not be substituted for each other. `longitudinal_responses.csv` retains `duration_ms` and adds the explicit alias `page_visit_duration_ms`. New per-game start timestamps support per-game durations in `games.csv`; historical games lacking a start timestamp have blank durations rather than invented values.
+
+The HAIC analysis table also shows a separate `Gameplay Duration` column, selected from the requested session's server history, and relabels the original duration column as `Page Visit Duration`. Missing server timestamps show N/A, never the short return-visit duration.
+
+Exports prefer preserved submissions, identify their source and preservation time in `sessions.csv`, and include the untouched originals in `raw/original_submissions.jsonl`. Already-credited historical sessions without a preserved submission remain locked, but their existing working files are not relabeled as original submissions. This update cannot recover answers overwritten before installation; retain earlier exports/backups.
+
 The lightweight update preserves SONA-code participant links and the existing debug CLI, without browser/device binding or a new researcher login. Participant pages do not mount the Study Browser. Ordinary sessions unlock 24 hours after credit; debug IDs bypass that delay. Pending questionnaire uploads are flushed before the credit page starts, and the API verifies saved required responses before granting credit. Wrong attention-check responses remain accepted and flagged for analysis. AI controls stay locked while automatic advice is pending.
 
 **Before recruitment:** the existing reVISit Supabase policies allow shared anonymous access, and researcher routes are not securely isolated. This development/pilot setup is not a production security release. Resolve those access controls before collecting real participant data. No database migration is needed for the lightweight update if the removed security migration was never applied. If it was applied, do not deploy this update until database policy compatibility has been reviewed; do not blindly reopen permissions.

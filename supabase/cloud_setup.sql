@@ -1,4 +1,5 @@
 -- Run once in the Supabase Cloud SQL Editor for the AI withdrawal study.
+-- Then apply submission_integrity.sql before running the current application.
 
 -- DEVELOPMENT / PILOT SETUP ONLY: the reVISit policies below allow shared
 -- anonymous access to questionnaire data. Restrict database/storage access

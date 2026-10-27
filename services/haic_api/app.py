@@ -15,6 +15,7 @@ from rl_model import MastermindRLModel
 from withdrawal_store import WithdrawalStore
 from completion_validation import validate_questionnaires, validate_session_code
 from study_export import SupabaseExportSource
+from submission_store import SubmissionStore
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
@@ -95,6 +96,33 @@ class WithdrawalEventsPayload(BaseModel):
 class SonaCompletionPayload(BaseModel):
     participantId: str = Field(min_length=1, max_length=128)
     partNumber: int = Field(ge=1, le=4)
+
+
+class PartStatusPayload(SonaCompletionPayload):
+    recordVisit: bool = False
+    includeSubmission: bool = False
+
+
+@app.post("/api/withdrawal/part-status")
+def part_status(payload: PartStatusPayload):
+    try:
+        record = WITHDRAWAL_STORE.get(payload.participantId)
+        credited = bool(record and payload.partNumber in (record.get("credited_parts") or []))
+        saved = SubmissionStore(WITHDRAWAL_STORE).get(payload.participantId, payload.partNumber)
+        locked = credited or saved is not None
+        if locked and payload.recordVisit:
+            WITHDRAWAL_STORE.append_events(payload.participantId, [{
+                "type": "completedSessionReopened" if credited else "submittedSessionReopened",
+                "sessionNumber": payload.partNumber,
+                "data": {"partNumber": payload.partNumber, "credited": credited},
+            }])
+        data = dict(saved["data"]) if saved and payload.includeSubmission else None
+        if data is not None:
+            data["completed"] = credited
+        return {"locked": locked, "credited": credited, "submitted": saved is not None,
+                "submission": data, "submittedAt": saved["submitted_at"] if saved else None}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def grant_sona_credit(part_number: int, survey_code: str) -> None:
@@ -247,9 +275,16 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
         if not already_credited:
             if not WITHDRAWAL_STORE.persistent:
                 raise ValueError("Persistent questionnaire storage is required before granting credit")
-            data = SupabaseExportSource().revisit_participant(payload.participantId, payload.partNumber)
+            submissions = SubmissionStore(WITHDRAWAL_STORE)
+            saved = submissions.get(payload.participantId, payload.partNumber)
+            data = saved["data"] if saved else SupabaseExportSource().revisit_participant(payload.participantId, payload.partNumber)
             validate_questionnaires(data, payload.partNumber, record["condition"])
             validate_session_code(data, record, payload.partNumber)
+            if not saved:
+                saved = submissions.freeze(payload.participantId, payload.partNumber, data)
+                # Concurrent submissions must use the first preserved answers.
+                validate_questionnaires(saved["data"], payload.partNumber, record["condition"])
+                validate_session_code(saved["data"], record, payload.partNumber)
             if not payload.participantId.startswith("debug-"):
                 grant_sona_credit(payload.partNumber, payload.participantId)
             record = WITHDRAWAL_STORE.mark_part_credited(

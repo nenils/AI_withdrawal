@@ -65,6 +65,7 @@ def support_phase(condition: str, session_number: int, round_number: int) -> str
 def create_game_state(session_number: int, now: datetime) -> dict[str, Any]:
     return {
         "session": session_number,
+        "roundStartedAt": iso(now),
         "round": 1,
         "secrets": [new_secret() for _ in range(ROUNDS_PER_SESSION)],
         "rounds": [],
@@ -303,6 +304,7 @@ class WithdrawalStore:
             if round_finished:
                 game["rounds"].append({
                     "round": game["round"],
+                    "startedAt": game.get("roundStartedAt") or (game["startedAt"] if game["round"] == 1 else None),
                     "attempts": attempt,
                     "won": won,
                     "secret": game["secrets"][round_index],
@@ -312,6 +314,7 @@ class WithdrawalStore:
                 game["guesses"] = []
                 if game["round"] < ROUNDS_PER_SESSION:
                     game["round"] += 1
+                    game["roundStartedAt"] = iso(utc_now())
                 else:
                     session_finished = True
                     now = utc_now()

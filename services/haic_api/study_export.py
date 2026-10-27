@@ -8,8 +8,11 @@ import urllib.parse
 import urllib.request
 import zipfile
 from collections.abc import Iterable, Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from submission_store import SubmissionStore
+from withdrawal_store import WithdrawalStore
 
 
 PART_NUMBERS = range(1, 5)
@@ -61,6 +64,11 @@ class SupabaseExportSource:
             "participant_id.asc",
         ))
 
+    def submission(self, participant_id: str, part_number: int):
+        store = WithdrawalStore()
+        store.base_url, store.service_key = self.base_url, self.service_key
+        return SubmissionStore(store).get(participant_id, part_number)
+
     def events(self) -> Iterator[dict[str, Any]]:
         return self.iter_table(
             "withdrawal_events",
@@ -99,6 +107,43 @@ class SupabaseExportSource:
 
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _duration_seconds(start, end):
+    if not start or not end:
+        return None
+    seconds = (datetime.fromisoformat(end.replace("Z", "+00:00"))
+               - datetime.fromisoformat(start.replace("Z", "+00:00"))).total_seconds()
+    return seconds if seconds >= 0 else None
+
+
+def _session_rows(participants, records):
+    documents = {(record["participant_id"], record["part_number"]): record for record in records}
+    for participant in participants:
+        sessions = list(participant.get("completed_sessions") or [])
+        if participant.get("game_state"):
+            sessions.append(participant["game_state"])
+        for session in sessions:
+            record = documents.get((participant["participant_id"], session["session"]), {})
+            data = record.get("data") or {}
+            visits = [stored for key, stored in (data.get("answers") or {}).items()
+                      if key.startswith("mastermind-part_")]
+            visit_durations = [
+                stored["endTime"] - stored["startTime"] for stored in visits
+                if stored.get("endTime", -1) > 0 and stored.get("startTime") is not None
+                and stored["endTime"] >= stored["startTime"]
+            ]
+            visit_ms = sum(visit_durations) if visit_durations else None
+            yield {
+                "participant_id": participant["participant_id"], "condition": participant["condition"],
+                "session_number": session["session"],
+                "gameplay_started_at": session.get("startedAt"),
+                "gameplay_completed_at": session.get("completedAt"),
+                "gameplay_duration_seconds": _duration_seconds(session.get("startedAt"), session.get("completedAt")),
+                "game_page_visit_duration_ms": visit_ms,
+                "questionnaire_source": record.get("data_source"),
+                "submission_saved_at": record.get("submission_saved_at"),
+            }
 
 
 def _write_csv(
@@ -146,6 +191,7 @@ def _response_rows(records: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
                     "start_time_ms": stored.get("startTime"),
                     "end_time_ms": stored.get("endTime"),
                     "duration_ms": duration,
+                    "page_visit_duration_ms": duration,
                     "timed_out": stored.get("timedOut", False),
                     "window_event_count": len(stored.get("windowEvents") or []),
                 }
@@ -162,6 +208,11 @@ def _game_rows(participants: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
                     "game_number": game.get("round"),
                     "won": game.get("won"),
                     "attempts": game.get("attempts"),
+                    "game_started_at": game.get("startedAt") or (session.get("startedAt") if game.get("round") == 1 else None),
+                    "gameplay_duration_seconds": _duration_seconds(
+                        game.get("startedAt") or (session.get("startedAt") if game.get("round") == 1 else None),
+                        game.get("completedAt"),
+                    ),
                     "secret_json": _json(game.get("secret")),
                     "session_started_at": session.get("startedAt"),
                     "game_completed_at": game.get("completedAt"),
@@ -208,15 +259,23 @@ def _guess_rows(participants: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
 def create_export(destination: str | Path, source: SupabaseExportSource | Any) -> dict[str, int]:
     participants = source.participants()
     revisit_records: list[dict[str, Any]] = []
+    originals = []
     by_participant = {row["participant_id"]: row for row in participants}
     for participant in participants:
         for part_number in PART_NUMBERS:
+            saved = source.submission(participant["participant_id"], part_number) if hasattr(source, "submission") else None
+            data = dict(saved["data"]) if saved else source.revisit_participant(participant["participant_id"], part_number)
+            if saved:
+                originals.append(saved)
+                data["completed"] = part_number in (participant.get("credited_parts") or [])
             revisit_records.append({
                 "participant_id": participant["participant_id"],
                 "condition": participant["condition"],
                 "part_number": part_number,
                 "study_id": f"HAIC_part_{part_number}",
-                "data": source.revisit_participant(participant["participant_id"], part_number),
+                "data": data,
+                "data_source": "immutable_submission" if saved else "working_file",
+                "submission_saved_at": saved["submitted_at"] if saved else None,
             })
 
     completion_rows = []
@@ -252,11 +311,16 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
         counts["responses"] = _write_csv(archive, "longitudinal_responses.csv", [
             "participant_id", "condition", "part_number", "study_id", "part_completed",
             "component_instance", "component_name", "trial_order", "response_id", "answer_json",
-            "start_time_ms", "end_time_ms", "duration_ms", "timed_out", "window_event_count",
+            "start_time_ms", "end_time_ms", "duration_ms", "page_visit_duration_ms", "timed_out", "window_event_count",
         ], _response_rows(revisit_records))
+        counts["sessions"] = _write_csv(archive, "sessions.csv", [
+            "participant_id", "condition", "session_number", "gameplay_started_at", "gameplay_completed_at",
+            "gameplay_duration_seconds", "game_page_visit_duration_ms", "questionnaire_source", "submission_saved_at",
+        ], _session_rows(participants, revisit_records))
         counts["games"] = _write_csv(archive, "games.csv", [
             "participant_id", "condition", "session_number", "game_number", "won", "attempts",
-            "secret_json", "session_started_at", "game_completed_at", "session_completed_at", "credited_at",
+            "secret_json", "session_started_at", "game_started_at", "gameplay_duration_seconds",
+            "game_completed_at", "session_completed_at", "credited_at",
         ], _game_rows(participants))
         counts["guesses"] = _write_csv(archive, "guesses.csv", [
             "participant_id", "condition", "session_number", "game_number", "attempt", "guess_json",
@@ -274,8 +338,9 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
             "".join(_json(record) + "\n" for record in revisit_records if record["data"] is not None),
         )
         archive.writestr("raw/withdrawal_participants.json", json.dumps(participants, ensure_ascii=False, indent=2))
+        archive.writestr("raw/original_submissions.jsonl", "".join(_json(row) + "\n" for row in originals))
         archive.writestr("manifest.json", json.dumps({
-            "format_version": 1,
+            "format_version": 2,
             "study_parts": [f"HAIC_part_{part}" for part in PART_NUMBERS],
             "row_counts": counts,
         }, indent=2))

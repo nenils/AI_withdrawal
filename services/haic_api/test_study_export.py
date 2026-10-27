@@ -132,6 +132,7 @@ class StudyExportTests(unittest.TestCase):
             self.assertEqual(counts, {
                 "participants": 1,
                 "responses": 1,
+                "sessions": 2,
                 "games": 1,
                 "guesses": 2,
                 "events": 1,
@@ -140,11 +141,13 @@ class StudyExportTests(unittest.TestCase):
                 self.assertEqual(set(archive.namelist()), {
                     "participant_status.csv",
                     "longitudinal_responses.csv",
+                    "sessions.csv",
                     "games.csv",
                     "guesses.csv",
                     "events.csv",
                     "raw/revisit_participants.jsonl",
                     "raw/withdrawal_participants.json",
+                    "raw/original_submissions.jsonl",
                     "manifest.json",
                 })
                 status = next(csv.DictReader(
@@ -160,6 +163,31 @@ class StudyExportTests(unittest.TestCase):
                 self.assertEqual(response["part_number"], "1")
                 self.assertEqual(response["response_id"], "state-responsibility")
                 self.assertEqual(json.loads(response["answer_json"]), [6])
+                self.assertEqual(response["page_visit_duration_ms"], "1500")
+                sessions = list(csv.DictReader(archive.read("sessions.csv").decode().splitlines()))
+                self.assertEqual(sessions[0]["gameplay_duration_seconds"], "600.0")
+                self.assertEqual(sessions[1]["gameplay_duration_seconds"], "")
+
+    def test_export_prefers_frozen_answers_and_keeps_page_visit_time_separate(self):
+        source = FakeExportSource()
+        original = source.revisit_participant('participant-1', 1)
+        original['answers']['mastermind-part_0'] = {
+            'startTime': 1000, 'endTime': 4668, 'answer': {'played-game': 'original'},
+        }
+        saved = {'participant_id': 'participant-1', 'part_number': 1, 'data': original,
+                 'submitted_at': '2026-01-01T12:11:00Z', 'sha256': 'example'}
+        source.submission = lambda _pid, part: saved if part == 1 else None
+        source.revisit_participant = lambda *_: None
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'export.zip'
+            create_export(destination, source)
+            with zipfile.ZipFile(destination) as archive:
+                session = next(csv.DictReader(archive.read('sessions.csv').decode().splitlines()))
+                self.assertEqual(session['gameplay_duration_seconds'], '600.0')
+                self.assertEqual(session['game_page_visit_duration_ms'], '3668')
+                self.assertEqual(session['questionnaire_source'], 'immutable_submission')
+                originals = archive.read('raw/original_submissions.jsonl').decode()
+                self.assertEqual(json.loads(originals)['data'], original)
 
 
 if __name__ == "__main__":

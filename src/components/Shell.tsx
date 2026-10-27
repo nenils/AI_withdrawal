@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { Provider } from 'react-redux';
 import { RouteObject, useRoutes, useSearchParams } from 'react-router';
-import { LoadingOverlay, Title } from '@mantine/core';
+import { Button, LoadingOverlay, Title, Text } from '@mantine/core';
 import {
   GlobalConfig,
   Nullable,
@@ -32,6 +32,7 @@ import { ResourceNotFound } from '../ResourceNotFound';
 import { encryptIndex } from '../utils/encryptDecryptIndex';
 import { parseStudyConfig } from '../parser/parser';
 import { hash } from '../storage/engines/utils';
+import { withdrawalPartStatus } from '../storage/withdrawalPartStatus';
 
 async function fetchParticipantIp() {
   const controller = new AbortController();
@@ -54,6 +55,8 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
   const studyId = useStudyId();
   const [activeConfig, setActiveConfig] = useState<ParsedConfig<StudyConfig> | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
+  const [partLock, setPartLock] = useState<{ participantId: string; part: number; credited: boolean } | null>(null);
+  const [creditRetrying, setCreditRetrying] = useState(false);
   const isValidStudyId = globalConfig.configsList.includes(studyId) || studyId === '__revisit-widget';
 
   useEffect(() => {
@@ -99,6 +102,20 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
 
       try {
         setStartupError(null);
+        setPartLock(null);
+        setRoutes([]);
+        setStore(null);
+
+        const linkedId = participantId || (activeConfig.uiConfig.urlParticipantIdParam
+          ? searchParams.get(activeConfig.uiConfig.urlParticipantIdParam) : null);
+        if (storageEngine.getEngine() === 'supabase' && /^HAIC_part_[1-4]$/.test(studyId) && linkedId) {
+          const part = Number(studyId.slice(-1));
+          const status = await withdrawalPartStatus(linkedId, part, true);
+          if (status.locked) {
+            setPartLock({ participantId: linkedId, part, credited: status.credited });
+            return;
+          }
+        }
 
         // Make sure that we have a study database and that the study database has a sequence array
         await storageEngine.initializeStudyDb(studyId);
@@ -207,6 +224,32 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
   // Definitely a 404
   if (!isValidStudyId) {
     toRender = <ResourceNotFound />;
+  } else if (partLock) {
+    toRender = (
+      <div style={{ padding: 24 }}>
+        <Title order={2} mb={8}>{partLock.credited ? 'You have already completed this session.' : 'Your answers have been submitted.'}</Title>
+        <Text>Your recorded answers will not be changed.</Text>
+        {!partLock.credited && (
+          <Button mt="md" loading={creditRetrying} onClick={async () => {
+            setCreditRetrying(true);
+            setStartupError(null);
+            try {
+              const response = await fetch('/api/sona/complete-part', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ participantId: partLock.participantId, partNumber: partLock.part }),
+              });
+              if (!response.ok) throw new Error('Credit could not be confirmed. Please retry without closing this tab.');
+              setPartLock({ ...partLock, credited: true });
+            } catch (error) {
+              setStartupError(error instanceof Error ? error.message : String(error));
+            } finally {
+              setCreditRetrying(false);
+            }
+          }}>Retry credit confirmation</Button>
+        )}
+        {startupError && <Text c="red" mt="md">{startupError}</Text>}
+      </div>
+    );
   } else if (startupError) {
     toRender = (
       <div style={{ padding: 24 }}>

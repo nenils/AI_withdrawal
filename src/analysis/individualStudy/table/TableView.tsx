@@ -24,6 +24,7 @@ import { getSequenceFlatMap } from '../../../utils/getSequenceFlatMap';
 import { MetaCell } from './MetaCell';
 import { DownloadButtons } from '../../../components/downloader/DownloadButtons';
 import { componentAnswersAreCorrect } from '../../../utils/correctAnswer';
+import { withdrawalGameplayDurationMs } from '../../utils/withdrawalTiming';
 
 function formatDate(date: Date): string | JSX.Element {
   if (date.valueOf() === 0 || Number.isNaN(date.valueOf())) {
@@ -98,7 +99,9 @@ export function TableView({
     ...(studyConfig.uiConfig.participantNameField ? [{ accessorFn: (row: ParticipantData) => participantName(row, studyConfig), header: 'Name' }] : []),
     {
       accessorFn: (row: ParticipantData) => new Date(Math.max(...Object.values<StoredAnswer>(row.answers).filter((data) => data.endTime > 0).map((s) => s.endTime)) - Math.min(...Object.values<StoredAnswer>(row.answers).filter((data) => data.startTime > 0).map((s) => s.startTime))),
-      header: 'Duration',
+      header: /^HAIC_part_[1-4]$/.test(studyId || '') ? 'Page Visit Duration' : 'Duration',
+      size: /^HAIC_part_[1-4]$/.test(studyId || '') ? 230 : 180,
+      minSize: /^HAIC_part_[1-4]$/.test(studyId || '') ? 230 : 20,
       Cell: ({ cell }: {cell: MrtCell<ParticipantData, Date>}) => (
         !Number.isNaN(cell.getValue()) ? (
           <Badge
@@ -115,6 +118,16 @@ export function TableView({
 
     },
 
+    ...(/^HAIC_part_[1-4]$/.test(studyId || '') ? [{
+      id: 'gameplayDuration',
+      header: 'Gameplay Duration',
+      size: 220,
+      minSize: 220,
+      accessorFn: (row: ParticipantData) => withdrawalGameplayDurationMs(row, Number(studyId!.slice(-1))),
+      Cell: ({ cell }: { cell: MrtCell<ParticipantData, number | null> }) => (
+        <Text>{cell.getValue() === null ? 'N/A' : humanReadableDuration(cell.getValue()!)}</Text>
+      ),
+    }] : []),
     {
       accessorFn: (row: ParticipantData) => new Date(Math.min(...Object.values<StoredAnswer>(row.answers).filter((data) => data.startTime > 0).map((s) => s.startTime))),
       Cell: ({ cell }) => (
@@ -155,7 +168,7 @@ export function TableView({
       Cell: ({ cell }: {cell: MrtCell<ParticipantData, ParticipantData['metadata']>}) => <MetaCell metaData={cell.getValue()} />,
     },
 
-  ], [studyConfig]);
+  ], [studyConfig, studyId]);
 
   const table = useMantineReactTable({
     columns,

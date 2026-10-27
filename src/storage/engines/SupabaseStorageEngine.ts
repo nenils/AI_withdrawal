@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { ParticipantData } from '../../parser/types';
+import { withdrawalPartStatus } from '../withdrawalPartStatus';
 import {
   REVISIT_MODE, SequenceAssignment, SnapshotDocContent, StorageEngine, StorageObject, StorageObjectType,
 } from './types';
@@ -10,7 +12,38 @@ export class SupabaseStorageEngine extends StorageEngine {
     super('supabase', testing);
   }
 
+  private participantPart(prefix: string, studyId?: string) {
+    const study = studyId || this.studyId;
+    if (!study || !/^HAIC_part_[1-4]$/.test(study) || !prefix.startsWith('participants/')) return null;
+    return { study, part: Number(study.slice(-1)), participantId: prefix.slice('participants/'.length) };
+  }
+
+  private async readAnnotations(study: string, participantId: string) {
+    const { data, error } = await this.supabase.from('revisit').select('data')
+      .eq('studyId', `${this.collectionPrefix}${study}`).eq('docId', `participantAnnotations_${participantId}`).maybeSingle();
+    if (error) throw new Error('Participant annotations could not be loaded');
+    return data?.data || {};
+  }
+
+  private async preserveAnnotations(study: string, participantId: string, data: ParticipantData) {
+    // Researcher tags and rejection flags are separate from immutable answers.
+    const { error } = await this.supabase.from('revisit').upsert({
+      studyId: `${this.collectionPrefix}${study}`, docId: `participantAnnotations_${participantId}`,
+      data: { participantTags: data.participantTags || [], rejected: data.rejected || false },
+    });
+    if (error) throw new Error('Participant annotations could not be saved');
+  }
+
   protected async _getFromStorage<T extends StorageObjectType>(prefix: string, type: T, studyId?: string) {
+    const part = type === 'participantData' ? this.participantPart(prefix, studyId) : null;
+    let locked = false;
+    if (part) {
+      const status = await withdrawalPartStatus(part.participantId, part.part, false, true);
+      locked = status.locked;
+      if (status.submission) {
+        return { ...status.submission, ...await this.readAnnotations(part.study, part.participantId) } as StorageObject<T>;
+      }
+    }
     const { data, error } = await this.supabase.storage
       .from('revisit')
       .download(`${this.collectionPrefix}${studyId || this.studyId}/${prefix}_${type}`, {}, type === 'participantData' ? { cache: 'no-store' } : {});
@@ -20,17 +53,34 @@ export class SupabaseStorageEngine extends StorageEngine {
     }
 
     const dataToParse = this.testing ? new Blob([data as unknown as string], { type: 'application/json' }) : data;
+    let parsed;
     try {
       const text = await dataToParse.text();
-      return JSON.parse(text) as StorageObject<T>;
+      parsed = JSON.parse(text);
     } catch {
       // Return the Blob directly if parsing fails
       return dataToParse as StorageObject<T>;
     }
+    return (part && locked ? { ...parsed, ...await this.readAnnotations(part.study, part.participantId), completed: true } : parsed) as StorageObject<T>;
   }
 
   protected async _pushToStorage<T extends StorageObjectType>(prefix: string, type: T, objectToUpload: StorageObject<T>) {
     await this.verifyStudyDatabase();
+    const part = type === 'participantData' ? this.participantPart(prefix) : null;
+    if (part) {
+      const status = await withdrawalPartStatus(part.participantId, part.part, false, true);
+      if (status.locked) {
+        const data = objectToUpload as ParticipantData;
+        const original = status.submission;
+        const annotations = { ...original, ...await this.readAnnotations(part.study, part.participantId) };
+        if ((!original || JSON.stringify(data.answers) === JSON.stringify(original.answers))
+          && (JSON.stringify(data.participantTags || []) !== JSON.stringify(annotations.participantTags || [])
+          || JSON.stringify(data.rejected || false) !== JSON.stringify(annotations.rejected || false))) {
+          await this.preserveAnnotations(part.study, part.participantId, data);
+        }
+        return;
+      }
+    }
 
     let uploadObject: Blob | Buffer<ArrayBuffer> = new Blob();
     if (objectToUpload instanceof Blob) {
@@ -50,6 +100,8 @@ export class SupabaseStorageEngine extends StorageEngine {
       });
 
     if (error) {
+      // A submission may have frozen while this upload was in flight.
+      if (part && (await withdrawalPartStatus(part.participantId, part.part)).locked) return;
       throw new Error('Failed to upload to Supabase');
     }
   }
@@ -63,6 +115,20 @@ export class SupabaseStorageEngine extends StorageEngine {
     if (error) {
       throw new Error('Failed to delete from Supabase');
     }
+  }
+
+  async verifyCompletion() {
+    if (this.studyId && /^HAIC_part_[1-4]$/.test(this.studyId) && this.currentParticipantId) {
+      await this.flushAnswers();
+      const status = await withdrawalPartStatus(this.currentParticipantId, Number(this.studyId.slice(-1)));
+      if (status.credited) {
+        if (this.participantData) this.participantData.completed = true;
+        await this._completeCurrentParticipantRealtime();
+        return true;
+      }
+      if (status.submitted) return false;
+    }
+    return super.verifyCompletion();
   }
 
   protected async _cacheStorageObject<T extends StorageObjectType>(prefix: string, type: T) {
