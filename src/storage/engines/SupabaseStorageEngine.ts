@@ -362,8 +362,6 @@ export class SupabaseStorageEngine extends StorageEngine {
   }
 
   async initializeStudyDb(studyId: string) {
-    const { error } = await this.supabase.auth.signInAnonymously();
-
     // Write a row into the revisit table for the study
     const { error: schemaError } = await this.supabase
       .from('revisit')
@@ -374,11 +372,10 @@ export class SupabaseStorageEngine extends StorageEngine {
       });
     this.studyId = studyId;
 
-    // Error if login failed or if there was a SQL issue that was not a duplicate record
+    // Report SQL issues that are not duplicate records.
     // (23505 is the code for unique constraint violation in PostgreSQL)
-    if (error || (schemaError && schemaError.code !== '23505')) {
-      console.error('Error initializing study DB:', error || schemaError);
-      // throw new Error('Failed to initialize study DB');
+    if (schemaError && schemaError.code !== '23505') {
+      throw new Error('Supabase study metadata could not be initialized.');
     }
   }
 

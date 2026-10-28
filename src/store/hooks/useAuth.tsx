@@ -70,9 +70,10 @@ export function AuthProvider({ children } : { children: ReactNode }) {
 
   // Logs the user out by removing the user and navigating to '/login'
   const logout = async () => {
-    const auth = getAuth();
     try {
-      await signOut(auth);
+      if (storageEngine?.getEngine() === 'firebase') {
+        await signOut(getAuth());
+      }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error(`There was an issue signing-out the user: ${error.message}`);

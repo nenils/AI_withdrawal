@@ -82,3 +82,9 @@ test('status verification failure cannot silently permit an upload', async () =>
   await expect(new IntegrityEngine().write(original)).rejects.toThrow('Unavailable');
   expect(mocks.upload).not.toHaveBeenCalled();
 });
+
+test('Supabase initialization does not require anonymous auth or a Firebase app', async () => {
+  const engine = new IntegrityEngine();
+  await expect(engine.initializeStudyDb('HAIC_part_2')).resolves.toBeUndefined();
+  expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ docId: 'connect' }));
+});
