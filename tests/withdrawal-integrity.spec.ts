@@ -164,3 +164,45 @@ test('analysis separates original gameplay from the short game-page visit', asyn
   await expect(page.getByText('01m 27s', { exact: true })).toBeVisible();
   await page.screenshot({ path: '/tmp/withdrawal-gameplay-duration.png', fullPage: true });
 });
+
+test('analysis retains navigation and reports API failure instead of going blank, then retries', async ({ page }) => {
+  let unavailable = true;
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  const participant = {
+    participantId: 'recovered-participant', participantIndex: 1, completed: true,
+    rejected: false, participantTags: [], metadata: {}, searchParams: {}, answers: {},
+    sequence: { orderPath: 'root', order: 'fixed', components: ['mastermind-part', 'end'] },
+  };
+  await page.route('https://test.supabase.co/**', (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'POST') return route.fulfill({ status: 201, body: '' });
+    if (url.pathname === '/rest/v1/revisit') {
+      if (url.searchParams.get('docId') === 'eq.metadata') {
+        return route.fulfill({ json: [{ data: { dataCollectionEnabled: true, studyNavigatorEnabled: false, analyticsInterfacePubliclyAccessible: false } }] });
+      }
+      if (url.searchParams.get('docId')?.startsWith('eq.participantAnnotations_')) return route.fulfill({ json: [] });
+      return route.fulfill({ json: [{ data: { participantId: participant.participantId }, createdAt: '2026-10-27T12:00:00Z' }] });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.route('**/api/withdrawal/part-status', (route) => (
+    unavailable
+      ? route.fulfill({ status: 503, json: { detail: 'withdrawal_submissions is missing' } })
+      : route.fulfill({ json: { locked: true, credited: true, submitted: true, submission: participant } })
+  ));
+  await page.goto('/analysis/stats/HAIC_part_2/table');
+  await expect(page.getByText('Participant data could not be loaded', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Session data could not be verified \(HTTP 503\)/)).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Study Summary' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Participant View' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Trial Stats' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Study Summary' }).click();
+  await page.getByRole('tab', { name: 'Participant View' }).click();
+  unavailable = false;
+  await page.getByRole('button', { name: 'Retry loading data' }).click();
+  await expect(page.getByText('recovered-participant', { exact: true })).toBeVisible();
+  await expect(page.getByText('Participant data could not be loaded', { exact: true })).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+});

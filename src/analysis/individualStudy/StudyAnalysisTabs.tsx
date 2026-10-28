@@ -1,5 +1,5 @@
 import {
-  Alert, AppShell, Checkbox, Container, Flex, Group, LoadingOverlay, Stack, Tabs, Text, Title,
+  Alert, AppShell, Button, Checkbox, Container, Flex, Group, LoadingOverlay, Stack, Tabs, Text, Title,
 } from '@mantine/core';
 import { useNavigate, useParams } from 'react-router';
 import {
@@ -64,7 +64,7 @@ export function StudyAnalysisTabs({ globalConfig }: { globalConfig: GlobalConfig
 
   // 0-1 percentage of scroll height
 
-  const { value: expData, execute, status } = useAsync(getParticipantsData, [studyConfig, storageEngine, studyId]);
+  const { value: expData, execute, status, error } = useAsync(getParticipantsData, [studyConfig, storageEngine, studyId]);
 
   const visibleParticipants = useMemo(() => {
     if (!expData) return [];
@@ -130,8 +130,17 @@ export function StudyAnalysisTabs({ globalConfig }: { globalConfig: GlobalConfig
             </Flex>
           </Flex>
           <LoadingOverlay visible={status === 'pending'} />
+          {status === 'error' && (
+            <Alert color="red" title="Participant data could not be loaded" icon={<IconInfoCircle />}>
+              <Text size="sm">{error instanceof Error ? error.message : 'The data service is unavailable.'}</Text>
+              <Text size="sm" mt="xs">This is a loading failure, not an empty participant list.</Text>
+              <Button mt="sm" variant="light" onClick={() => {
+                execute(studyConfig, storageEngine, studyId).catch(() => {});
+              }}>Retry loading data</Button>
+            </Alert>
+          )}
 
-          {status === 'success' ? (
+          {studyConfig ? (
             <Tabs
               style={{
                 flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -148,13 +157,13 @@ export function StudyAnalysisTabs({ globalConfig }: { globalConfig: GlobalConfig
                 <Tabs.Tab value="manage" leftSection={<IconSettings size={16} />} disabled={!user.isAdmin}>Manage</Tabs.Tab>
               </Tabs.List>
               <Tabs.Panel style={{ overflow: 'auto' }} value="summary" pt="xs">
-                {studyConfig && <SummaryView studyConfig={studyConfig} visibleParticipants={visibleParticipants} />}
+                {status === 'success' && <SummaryView studyConfig={studyConfig} visibleParticipants={visibleParticipants} />}
               </Tabs.Panel>
               <Tabs.Panel style={{ height: `calc(100% - ${TABLE_HEADER_HEIGHT}px)` }} value="table" pt="xs">
-                {studyConfig && <TableView width={width} visibleParticipants={visibleParticipants} studyConfig={studyConfig} refresh={() => execute(studyConfig, storageEngine, studyId)} />}
+                {status === 'success' && <TableView width={width} visibleParticipants={visibleParticipants} studyConfig={studyConfig} refresh={() => execute(studyConfig, storageEngine, studyId)} />}
               </Tabs.Panel>
               <Tabs.Panel value="stats" pt="xs">
-                {studyConfig && <StatsView studyConfig={studyConfig} visibleParticipants={visibleParticipants} />}
+                {status === 'success' && <StatsView studyConfig={studyConfig} visibleParticipants={visibleParticipants} />}
               </Tabs.Panel>
               <Tabs.Panel value="manage" pt="xs">
                 {studyId && user.isAdmin ? <ManageAccordion studyId={studyId} refresh={() => execute(studyConfig, storageEngine, studyId)} /> : <Container mt={20}><Alert title="Unauthorized Access" variant="light" color="red" icon={<IconInfoCircle />}>You are not authorized to manage the data for this study.</Alert></Container>}

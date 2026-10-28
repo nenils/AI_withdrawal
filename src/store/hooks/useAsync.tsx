@@ -88,9 +88,10 @@ export const useAsync = <F extends (...args: any[]) => any, E = Error, T = Await
   useDeepCompareEffect(() => {
     if (immediate) {
       try {
-        execute(...immediate);
+        // execute already records asynchronous errors in its error state.
+        execute(...immediate).catch(() => {});
       } catch {
-        // ignore any immediate error
+        // Preserve handling for synchronous callbacks.
       }
     }
   }, [execute, immediate]);
