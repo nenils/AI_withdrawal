@@ -3,6 +3,10 @@ import { ParticipantData } from '../parser/types';
 export interface WithdrawalPartStatus {
   locked: boolean;
   credited: boolean;
+  completed?: boolean;
+  nextSessionNumber?: number | null;
+  nextSessionAvailableAt?: string | null;
+  nextSessionUrl?: string | null;
   submitted: boolean;
   submission: ParticipantData | null;
   submittedAt: string | null;

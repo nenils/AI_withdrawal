@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from submission_store import SubmissionStore
-from withdrawal_store import WithdrawalStore
+from withdrawal_store import WithdrawalStore, part_completed
 
 
 PART_NUMBERS = range(1, 5)
@@ -267,7 +267,7 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
             data = dict(saved["data"]) if saved else source.revisit_participant(participant["participant_id"], part_number)
             if saved:
                 originals.append(saved)
-                data["completed"] = part_number in (participant.get("credited_parts") or [])
+                data["completed"] = True
             revisit_records.append({
                 "participant_id": participant["participant_id"],
                 "condition": participant["condition"],
@@ -286,6 +286,12 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
             "condition": participant["condition"],
             "current_session": participant.get("current_session"),
             "credited_parts_json": _json(participant.get("credited_parts") or []),
+            "completed_parts_json": _json([
+                part for part in PART_NUMBERS if part_completed(participant, part) or any(
+                    record["part_number"] == part and record["data_source"] == "immutable_submission"
+                    for record in participant_records
+                )
+            ]),
             "completed_session_count": len(participant.get("completed_sessions") or []),
             "study_completed_at": participant.get("completed_at"),
             "created_at": participant.get("created_at"),
@@ -303,7 +309,7 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
     counts: dict[str, int] = {}
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         counts["participants"] = _write_csv(archive, "participant_status.csv", [
-            "participant_id", "condition", "current_session", "credited_parts_json",
+            "participant_id", "condition", "current_session", "credited_parts_json", "completed_parts_json",
             "completed_session_count", "study_completed_at", "created_at", "updated_at",
             *[f"part_{part}_{suffix}" for part in PART_NUMBERS for suffix in ("data_found", "completed")],
             "all_four_parts_found", "all_four_parts_completed",

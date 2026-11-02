@@ -121,7 +121,7 @@ export class SupabaseStorageEngine extends StorageEngine {
     if (this.studyId && /^HAIC_part_[1-4]$/.test(this.studyId) && this.currentParticipantId) {
       await this.flushAnswers();
       const status = await withdrawalPartStatus(this.currentParticipantId, Number(this.studyId.slice(-1)));
-      if (status.credited) {
+      if (status.completed ?? status.credited) {
         if (this.participantData) this.participantData.completed = true;
         await this._completeCurrentParticipantRealtime();
         return true;

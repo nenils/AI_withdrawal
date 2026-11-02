@@ -70,7 +70,10 @@ test('an upload racing with the server lock is treated as preserved, not retried
   expect(withdrawalPartStatus).toHaveBeenCalledTimes(2);
 });
 
-test('the end page recognizes credit without another questionnaire upload', async () => {
+test('the end page recognizes local completion even while SONA credit is pending', async () => {
+  vi.mocked(withdrawalPartStatus).mockResolvedValue({
+    locked: true, submitted: true, completed: true, credited: false, submission: original, submittedAt: '2026-11-02T12:00:00Z',
+  });
   const engine = new IntegrityEngine();
   await expect(engine.verifyCompletion()).resolves.toBe(true);
   expect(engine.realtimeCompleted).toBe(true);

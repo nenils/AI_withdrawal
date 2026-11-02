@@ -23,7 +23,7 @@ for (const credited of [true, false]) {
     expect(visits).toContainEqual(expect.objectContaining({ participantId: 'completed-participant', partNumber: 2, recordVisit: true }));
     expect(writes).toHaveLength(0);
     if (!credited) {
-      await page.getByRole('button', { name: 'Retry credit confirmation' }).click();
+      await page.getByRole('button', { name: 'Confirm saved submission' }).click();
       await expect(page.getByRole('heading', { name: 'You have already completed this session.' })).toBeVisible();
       expect(writes).toHaveLength(0);
     }
@@ -43,10 +43,11 @@ test('unavailable session verification fails closed before questionnaire initial
   expect(writes).toHaveLength(0);
 });
 
-test('first submission finishes normally without rewriting frozen questionnaire files', async ({ page }) => {
+for (const creditPending of [false, true]) {
+test(`submission finishes and offers the next link without rewriting answers (SONA pending=${creditPending})`, async ({ page }) => {
   const rows = new Map<string, { docId: string; data: unknown }>();
   const files = new Map<string, string>();
-  let credited = false;
+  let completed = false;
   let original: Record<string, unknown> | null = null;
   let uploadsAfterCredit = 0;
   const participantId = 'first-submission';
@@ -74,7 +75,7 @@ test('first submission finishes normally without rewriting frozen questionnaire 
     if (url.pathname.includes('/storage/v1/object/')) {
       const path = url.pathname.split('/revisit/')[1];
       if (request.method() === 'POST') {
-        if (credited && path.endsWith('_participantData')) uploadsAfterCredit += 1;
+        if (completed && path.endsWith('_participantData')) uploadsAfterCredit += 1;
         const contentType = request.headers()['content-type'] || '';
         if (contentType.startsWith('multipart/form-data')) {
           const form = await new Response(new Uint8Array(request.postDataBuffer()!), { headers: { 'Content-Type': contentType } }).formData();
@@ -92,8 +93,11 @@ test('first submission finishes normally without rewriting frozen questionnaire 
     return route.fulfill({ status: 404, json: {} });
   });
   await page.route('**/api/withdrawal/part-status', (route) => route.fulfill({ json: {
-    locked: credited, credited, submitted: credited,
-    submission: original ? { ...original, completed: credited } : null,
+    locked: completed, completed, credited: completed && !creditPending, submitted: completed,
+    submission: original ? { ...original, completed } : null,
+    nextSessionNumber: completed ? 3 : null,
+    nextSessionAvailableAt: completed ? '2026-11-03T12:00:00Z' : null,
+    nextSessionUrl: completed ? `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}` : null,
   } }));
   await page.route('**/api/withdrawal/state', (route) => route.fulfill({ json: {
     participantId, condition: 'control', currentSession: 2, partGameComplete: true,
@@ -104,8 +108,12 @@ test('first submission finishes normally without rewriting frozen questionnaire 
     const stored = [...files.entries()].find(([path]) => path.endsWith(`/${participantId}_participantData`));
     expect(stored).toBeDefined();
     original = JSON.parse(stored![1]);
-    credited = true;
-    await route.fulfill({ json: { credited: true, studyCompleted: false } });
+    completed = true;
+    await route.fulfill({ json: {
+      completed: true, credited: !creditPending, creditPending, studyCompleted: false,
+      nextSessionNumber: 3, nextSessionAvailableAt: '2026-11-03T12:00:00Z',
+      nextSessionUrl: `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}`,
+    } });
   });
   await page.goto(`/HAIC_part_2/?sona_id=${participantId}`);
   await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
@@ -118,15 +126,18 @@ test('first submission finishes normally without rewriting frozen questionnaire 
   await expect(page.getByRole('slider')).toHaveCount(6);
   for (const slider of await page.getByRole('slider').all()) { await slider.focus(); await slider.press('ArrowRight'); }
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(page.frameLocator('iframe').getByText('Your SONA credit has been granted.', { exact: false })).toBeVisible();
+  await expect(page.frameLocator('iframe').getByText('Your answers have been saved.', { exact: false })).toBeVisible();
+  await expect(page.frameLocator('iframe').getByRole('link', { name: 'Open Session 3' })).toHaveAttribute('href', `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}`);
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(page.getByText('Thank you. Part 2 is complete,', { exact: false })).toBeVisible();
+  await expect(page.getByText('Thank you. Part 2 is complete and your answers have been saved.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open Session 3' })).toBeVisible();
   expect(uploadsAfterCredit).toBe(0);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'You have already completed this session.' })).toBeVisible();
   await expect(page.locator('iframe')).toHaveCount(0);
   expect(uploadsAfterCredit).toBe(0);
 });
+}
 
 test('analysis separates original gameplay from the short game-page visit', async ({ page }) => {
   const original = {

@@ -122,7 +122,7 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await expect(page.getByText(/interaction with the AI system/i)).toHaveCount(0);
     for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) await radio.click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await expect(page.frameLocator('iframe').getByText('Your final SONA credit has been granted.', { exact: false })).toBeVisible();
+    await expect(page.frameLocator('iframe').getByText('Your answers have been saved.', { exact: false })).toBeVisible();
     for (const field of completionRequirements['4']) {
       if (field.supportedOnly && condition === 'control') continue;
       expect(savedAnswersAtCredit[field.id], field.id).toBeDefined();

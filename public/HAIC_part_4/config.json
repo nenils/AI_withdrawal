@@ -21,7 +21,7 @@
     "withSidebar": true,
     "enumerateQuestions": true,
     "urlParticipantIdParam": "sona_id",
-    "studyEndMsg": "Thank you. Part 4 and the full study are complete, and your SONA credit has been granted.",
+    "studyEndMsg": "Thank you. Part 4 and the full study are complete, and your answers have been saved.",
     "numSequences": 1
   },
   "importedLibraries": [

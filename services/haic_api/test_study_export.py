@@ -189,6 +189,24 @@ class StudyExportTests(unittest.TestCase):
                 originals = archive.read('raw/original_submissions.jsonl').decode()
                 self.assertEqual(json.loads(originals)['data'], original)
 
+    def test_saved_submission_counts_as_completed_even_with_no_sona_credit(self):
+        source = FakeExportSource()
+        participant = source.participants()[0]
+        participant['credited_parts'] = []
+        source.participants = lambda: [participant]
+        source.submission = lambda pid, part: (
+            {'participant_id': pid, 'part_number': part, 'data': {'participantId': pid, 'answers': {}},
+             'submitted_at': '2026-11-02T12:00:00Z'} if part == 1 else None
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'export.zip'
+            create_export(destination, source)
+            with zipfile.ZipFile(destination) as archive:
+                status = next(csv.DictReader(archive.read('participant_status.csv').decode().splitlines()))
+                self.assertEqual(json.loads(status['completed_parts_json']), [1])
+                self.assertEqual(json.loads(status['credited_parts_json']), [])
+                self.assertEqual(status['part_1_completed'], 'True')
+
 
 if __name__ == "__main__":
     unittest.main()

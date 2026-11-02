@@ -85,9 +85,9 @@ components['nasa-tlx'] = {
 components['sona-completion'] = {
   type: 'website',
   path: 'HAIC_study/assets/sona_completion.html',
-  description: 'Server-side SONA credit granting for the current part.',
+  description: 'Server-side confirmation of the saved study submission.',
   response: [{
-    id: 'sonaCreditGranted',
+    id: 'sessionSubmissionConfirmed',
     prompt: '',
     required: true,
     type: 'reactive',
@@ -169,8 +169,8 @@ for (let part = 1; part <= 4; part += 1) {
       urlParticipantIdParam: 'sona_id',
       numSequences: 1,
       studyEndMsg: part === 4
-        ? 'Thank you. Part 4 and the full study are complete, and your SONA credit has been granted.'
-        : `Thank you. Part ${part} is complete, and your SONA credit has been granted. SONA will provide access to the next part after the configured separation.`,
+        ? 'Thank you. Part 4 and the full study are complete, and your answers have been saved.'
+        : `Thank you. Part ${part} is complete and your answers have been saved. The next session is available 24 hours after submission.`,
     },
     importedLibraries: ['haic-withdrawal'],
     components: {

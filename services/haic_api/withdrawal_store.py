@@ -24,6 +24,13 @@ def iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
+def part_completed(record: dict[str, Any], part: int) -> bool:
+    return part in (record.get("credited_parts") or []) or any(
+        session.get("session") == part and session.get("submittedAt")
+        for session in record.get("completed_sessions") or []
+    )
+
+
 def new_secret() -> list[str]:
     return [secrets.choice(COLORS) for _ in range(4)]
 
@@ -224,7 +231,7 @@ class WithdrawalStore:
         if expected_session is not None:
             if expected_session > record["current_session"]:
                 raise PermissionError("Complete the preceding SONA part before opening this part")
-            if expected_session < record["current_session"] and expected_session not in credited_parts:
+            if expected_session < record["current_session"] and not part_completed(record, expected_session):
                 raise ValueError("This study part does not match the participant record")
         record = self.ensure_session_started(record, expected_session)
         now = utc_now()
@@ -261,6 +268,7 @@ class WithdrawalStore:
                 if item.get("session") == active_session
             ), None),
             "partCredited": active_session in credited_parts,
+            "partCompleted": part_completed(record, active_session),
             "supportAvailable": support_available(record["condition"], active_session, round_number),
             "supportPhase": support_phase(record["condition"], active_session, round_number),
             "game": public_game,
@@ -343,7 +351,7 @@ class WithdrawalStore:
     def part_ready_for_credit(self, participant_id: str, part_number: int) -> dict[str, Any]:
         with self._lock:
             record = self.get_or_create(participant_id)
-            if part_number in (record.get("credited_parts") or []):
+            if part_completed(record, part_number):
                 return record
             if part_number != record["current_session"]:
                 raise PermissionError("This SONA part is not the participant's current part")
@@ -356,6 +364,22 @@ class WithdrawalStore:
                 raise ValueError("No completed game session was found for this part")
             return record
 
+    def mark_part_completed(self, participant_id: str, part_number: int, submitted_at: str) -> dict[str, Any]:
+        with self._lock:
+            record = self.part_ready_for_credit(participant_id, part_number)
+            session = next(item for item in record["completed_sessions"] if item["session"] == part_number)
+            if session.get("submittedAt"):
+                return record
+            session["submittedAt"] = submitted_at
+            submitted = datetime.fromisoformat(submitted_at.replace("Z", "+00:00"))
+            if part_number == 4:
+                record["completed_at"] = iso(submitted)
+            elif record["current_session"] in (part_number, part_number + 1):
+                record["current_session"] = part_number + 1
+                record["next_session_available_at"] = iso(submitted + timedelta(hours=24))
+            record["updated_at"] = iso(utc_now())
+            return self.save(record)
+
     def mark_part_credited(self, participant_id: str, part_number: int) -> dict[str, Any]:
         with self._lock:
             record = self.part_ready_for_credit(participant_id, part_number)
@@ -367,10 +391,5 @@ class WithdrawalStore:
             for session in record.get("completed_sessions") or []:
                 if session.get("session") == part_number:
                     session["creditedAt"] = iso(now)
-            if part_number == 4:
-                record["completed_at"] = iso(now)
-            else:
-                record["current_session"] = part_number + 1
-                record["next_session_available_at"] = iso(now + timedelta(hours=24))
             record["updated_at"] = iso(now)
             return self.save(record)

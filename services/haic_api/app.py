@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from rl_model import MastermindRLModel
-from withdrawal_store import WithdrawalStore
+from withdrawal_store import WithdrawalStore, part_completed
 from completion_validation import validate_questionnaires, validate_session_code
 from study_export import SupabaseExportSource
 from submission_store import SubmissionStore
@@ -103,24 +103,72 @@ class PartStatusPayload(SonaCompletionPayload):
     includeSubmission: bool = False
 
 
+def next_session_details(record):
+    if not record or record.get("completed_at"):
+        return {"nextSessionNumber": None, "nextSessionAvailableAt": None, "nextSessionUrl": None}
+    part = record["current_session"]
+    participant = urllib.parse.quote(record["participant_id"], safe="")
+    return {
+        "nextSessionNumber": part,
+        "nextSessionAvailableAt": record.get("next_session_available_at"),
+        "nextSessionUrl": f"{STUDY_PUBLIC_URL.rstrip('/')}/HAIC_part_{part}/?sona_id={participant}",
+    }
+
+
+def reconcile_submission(record, saved, participant_id, part):
+    if saved and record and not any(
+        item.get("session") == part and item.get("submittedAt")
+        for item in record.get("completed_sessions") or []
+    ):
+        validate_questionnaires(saved["data"], part, record["condition"])
+        validate_session_code(saved["data"], record, part)
+        return WITHDRAWAL_STORE.mark_part_completed(participant_id, part, saved["submitted_at"])
+    return record
+
+
+def reconcile_pending_parts(record, requested_part):
+    if record and requested_part >= record["current_session"] and record["current_session"] > 1:
+        previous = record["current_session"] - 1
+        if any(item.get("session") == previous and not item.get("submittedAt")
+               for item in record.get("completed_sessions") or []):
+            saved = SubmissionStore(WITHDRAWAL_STORE).get(record["participant_id"], previous)
+            record = reconcile_submission(record, saved, record["participant_id"], previous)
+    while record and not record.get("completed_at") and record["current_session"] <= requested_part:
+        current = record["current_session"]
+        saved = SubmissionStore(WITHDRAWAL_STORE).get(record["participant_id"], current)
+        if not saved:
+            break
+        updated = reconcile_submission(record, saved, record["participant_id"], current)
+        record = updated
+        if record["current_session"] <= current:
+            break
+    return record
+
+
 @app.post("/api/withdrawal/part-status")
 def part_status(payload: PartStatusPayload):
     try:
         record = WITHDRAWAL_STORE.get(payload.participantId)
+        record = reconcile_pending_parts(record, payload.partNumber)
         credited = bool(record and payload.partNumber in (record.get("credited_parts") or []))
         saved = SubmissionStore(WITHDRAWAL_STORE).get(payload.participantId, payload.partNumber)
-        locked = credited or saved is not None
+        record = reconcile_submission(record, saved, payload.participantId, payload.partNumber)
+        completed = bool(record and part_completed(record, payload.partNumber))
+        locked = completed or saved is not None
         if locked and payload.recordVisit:
             WITHDRAWAL_STORE.append_events(payload.participantId, [{
-                "type": "completedSessionReopened" if credited else "submittedSessionReopened",
+                "type": "completedSessionReopened" if completed else "submittedSessionReopened",
                 "sessionNumber": payload.partNumber,
                 "data": {"partNumber": payload.partNumber, "credited": credited},
             }])
         data = dict(saved["data"]) if saved and payload.includeSubmission else None
         if data is not None:
-            data["completed"] = credited
-        return {"locked": locked, "credited": credited, "submitted": saved is not None,
-                "submission": data, "submittedAt": saved["submitted_at"] if saved else None}
+            data["completed"] = completed
+        return {"locked": locked, "completed": completed, "credited": credited, "submitted": saved is not None,
+                "submission": data, "submittedAt": saved["submitted_at"] if saved else None,
+                **(next_session_details(record) if completed else {})}
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -230,6 +278,7 @@ def health() -> dict[str, Any]:
 def withdrawal_state(payload: WithdrawalStatePayload) -> dict[str, Any]:
     try:
         record = WITHDRAWAL_STORE.get_or_create(payload.participantId, payload.condition)
+        record = reconcile_pending_parts(record, payload.partNumber)
         return WITHDRAWAL_STORE.public_state(record, payload.partNumber)
     except PermissionError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
@@ -272,7 +321,8 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
             payload.partNumber,
         )
         already_credited = payload.partNumber in (record.get("credited_parts") or [])
-        if not already_credited:
+        already_completed = part_completed(record, payload.partNumber)
+        if not already_completed:
             if not WITHDRAWAL_STORE.persistent:
                 raise ValueError("Persistent questionnaire storage is required before granting credit")
             submissions = SubmissionStore(WITHDRAWAL_STORE)
@@ -285,17 +335,26 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
                 # Concurrent submissions must use the first preserved answers.
                 validate_questionnaires(saved["data"], payload.partNumber, record["condition"])
                 validate_session_code(saved["data"], record, payload.partNumber)
-            if not payload.participantId.startswith("debug-"):
-                grant_sona_credit(payload.partNumber, payload.participantId)
-            record = WITHDRAWAL_STORE.mark_part_credited(
-                payload.participantId,
-                payload.partNumber,
+            record = WITHDRAWAL_STORE.mark_part_completed(
+                payload.participantId, payload.partNumber, saved["submitted_at"],
             )
+        credit_pending = False
+        if not already_credited:
+            try:
+                if not payload.participantId.startswith("debug-"):
+                    grant_sona_credit(payload.partNumber, payload.participantId)
+                record = WITHDRAWAL_STORE.mark_part_credited(payload.participantId, payload.partNumber)
+            except RuntimeError:
+                # External credit must never undo local completion or postpone access.
+                credit_pending = True
         return {
-            "credited": True,
+            "completed": True,
+            "credited": not credit_pending,
+            "creditPending": credit_pending,
             "alreadyCredited": already_credited,
             "partNumber": payload.partNumber,
             "studyCompleted": bool(record.get("completed_at")),
+            **next_session_details(record),
         }
     except PermissionError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc

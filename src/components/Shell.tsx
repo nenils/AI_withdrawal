@@ -55,7 +55,10 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
   const studyId = useStudyId();
   const [activeConfig, setActiveConfig] = useState<ParsedConfig<StudyConfig> | null>(null);
   const [startupError, setStartupError] = useState<string | null>(null);
-  const [partLock, setPartLock] = useState<{ participantId: string; part: number; credited: boolean } | null>(null);
+  const [partLock, setPartLock] = useState<{
+    participantId: string; part: number; completed: boolean;
+    nextSessionNumber?: number | null; nextSessionAvailableAt?: string | null; nextSessionUrl?: string | null;
+  } | null>(null);
   const [creditRetrying, setCreditRetrying] = useState(false);
   const isValidStudyId = globalConfig.configsList.includes(studyId) || studyId === '__revisit-widget';
 
@@ -112,7 +115,7 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
           const part = Number(studyId.slice(-1));
           const status = await withdrawalPartStatus(linkedId, part, true);
           if (status.locked) {
-            setPartLock({ participantId: linkedId, part, credited: status.credited });
+            setPartLock({ ...status, participantId: linkedId, part, completed: status.completed ?? status.credited });
             return;
           }
         }
@@ -227,9 +230,15 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
   } else if (partLock) {
     toRender = (
       <div style={{ padding: 24 }}>
-        <Title order={2} mb={8}>{partLock.credited ? 'You have already completed this session.' : 'Your answers have been submitted.'}</Title>
+        <Title order={2} mb={8}>{partLock.completed ? 'You have already completed this session.' : 'Your answers have been submitted.'}</Title>
         <Text>Your recorded answers will not be changed.</Text>
-        {!partLock.credited && (
+        {partLock.nextSessionUrl && (
+          <>
+            {partLock.nextSessionAvailableAt && <Text mt="md">Session {partLock.nextSessionNumber} is available from {new Date(partLock.nextSessionAvailableAt).toLocaleString()}.</Text>}
+            <Text component="a" href={partLock.nextSessionUrl} mt="sm" display="block" c="blue">Open Session {partLock.nextSessionNumber}</Text>
+          </>
+        )}
+        {!partLock.completed && (
           <Button mt="md" loading={creditRetrying} onClick={async () => {
             setCreditRetrying(true);
             setStartupError(null);
@@ -238,14 +247,15 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ participantId: partLock.participantId, partNumber: partLock.part }),
               });
-              if (!response.ok) throw new Error('Credit could not be confirmed. Please retry without closing this tab.');
-              setPartLock({ ...partLock, credited: true });
+              if (!response.ok) throw new Error('Submission could not be confirmed. Please retry without closing this tab.');
+              const result = await response.json();
+              setPartLock({ ...partLock, ...result, completed: true });
             } catch (error) {
               setStartupError(error instanceof Error ? error.message : String(error));
             } finally {
               setCreditRetrying(false);
             }
-          }}>Retry credit confirmation</Button>
+          }}>Confirm saved submission</Button>
         )}
         {startupError && <Text c="red" mt="md">{startupError}</Text>}
       </div>

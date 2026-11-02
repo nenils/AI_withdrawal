@@ -929,10 +929,10 @@
     "sona-completion": {
       "type": "website",
       "path": "HAIC_study/assets/sona_completion.html",
-      "description": "Server-side SONA credit granting for the current part.",
+      "description": "Server-side confirmation of the saved study submission.",
       "response": [
         {
-          "id": "sonaCreditGranted",
+          "id": "sessionSubmissionConfirmed",
           "prompt": "",
           "required": true,
           "type": "reactive",

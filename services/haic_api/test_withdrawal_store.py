@@ -60,10 +60,10 @@ class WithdrawalStoreTests(unittest.TestCase):
                     codes.add(code)
                     reloaded = self.store.get_or_create(participant)
                     self.assertEqual(self.store.public_state(reloaded, session)["sessionConfirmationCode"], code)
-                    record = self.store.mark_part_credited(participant, session)
+                    record = self.store.mark_part_completed(participant, session, utc_now().isoformat())
                     self.assertEqual(self.store.public_state(record, session)["sessionConfirmationCode"], code)
             self.assertIsNotNone(record["completed_at"])
-            self.assertEqual(record["credited_parts"], [1, 2, 3, 4])
+            self.assertEqual(record["credited_parts"], [])
 
     def test_existing_completed_debug_session_gets_a_stable_individual_code(self):
         record = self.store.get_or_create('debug-existing', 'control')
@@ -100,7 +100,7 @@ class WithdrawalStoreTests(unittest.TestCase):
         self.assertFalse(result["sessionFinished"])
         self.assertEqual(result["game"]["round"], 2)
 
-    def test_sona_credit_advances_only_after_four_games(self) -> None:
+    def test_saved_completion_advances_only_after_four_games_without_sona_credit(self) -> None:
         participant = "participant-3"
         for _round in range(4):
             record = self.store.get(participant)
@@ -113,9 +113,9 @@ class WithdrawalStoreTests(unittest.TestCase):
         self.assertEqual(result["currentSession"], 1)
         self.assertEqual(len(result["completedSessions"]), 1)
 
-        credited = self.store.mark_part_credited(participant, 1)
+        credited = self.store.mark_part_completed(participant, 1, utc_now().isoformat())
         self.assertEqual(credited["current_session"], 2)
-        self.assertEqual(credited["credited_parts"], [1])
+        self.assertEqual(credited["credited_parts"], [])
         with self.assertRaises(PermissionError):
             self.store.public_state(credited, 2)
         with self.assertRaises(PermissionError):
@@ -123,6 +123,11 @@ class WithdrawalStoreTests(unittest.TestCase):
         with patch('withdrawal_store.utc_now', return_value=utc_now() + timedelta(hours=24, seconds=1)):
             next_state = self.store.public_state(credited, 2)
         self.assertEqual(next_state["game"]["session"], 2)
+        unlock = credited["next_session_available_at"]
+        with patch('withdrawal_store.utc_now', return_value=utc_now() + timedelta(days=3)):
+            after_credit = self.store.mark_part_credited(participant, 1)
+        self.assertEqual(after_credit["next_session_available_at"], unlock)
+        self.assertEqual(after_credit["credited_parts"], [1])
 
     def test_future_sona_part_cannot_start_early(self) -> None:
         record = self.store.get_or_create("participant-4", "control")

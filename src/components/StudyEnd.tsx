@@ -12,12 +12,15 @@ import { ParticipantData } from '../storage/types';
 import { download } from './downloader/DownloadTidy';
 import { useStudyId } from '../routes/utils';
 import { useIsAnalysis } from '../store/hooks/useIsAnalysis';
+import { withdrawalPartStatus, WithdrawalPartStatus } from '../storage/withdrawalPartStatus';
 
 export function StudyEnd() {
   const studyConfig = useStudyConfig();
   const { storageEngine } = useStorageEngine();
 
   const isAnalysis = useIsAnalysis();
+  const studyId = useStudyId();
+  const [sessionStatus, setSessionStatus] = useState<WithdrawalPartStatus | null>(null);
 
   const [completed, setCompleted] = useState(false);
   const [uploadError, setUploadError] = useState(false);
@@ -102,7 +105,15 @@ export function StudyEnd() {
     return () => { };
   }, [autoDownload, completed, delayCounter, downloadParticipant]);
 
-  const studyId = useStudyId();
+  useEffect(() => {
+    if (!completed || isAnalysis || storageEngine?.getEngine() !== 'supabase' || !/^HAIC_part_[1-4]$/.test(studyId)) return;
+    let cancelled = false;
+    storageEngine.getCurrentParticipantId()
+      .then((id) => withdrawalPartStatus(id, Number(studyId.slice(-1))))
+      .then((status) => { if (!cancelled) setSessionStatus(status); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [completed, isAnalysis, storageEngine, studyId]);
   const [dataCollectionEnabled, setDataCollectionEnabled] = useState<boolean | null>(null);
   useEffect(() => {
     const checkDataCollectionEnabled = async () => {
@@ -115,6 +126,9 @@ export function StudyEnd() {
   }, [storageEngine, studyId]);
 
   const processedStudyEndMsg = useMemo(() => {
+    if (/^HAIC_part_[1-4]$/.test(studyId)) {
+      return `Thank you. Part ${studyId.slice(-1)} is complete and your answers have been saved.`;
+    }
     const { studyEndMsg, urlParticipantIdParam } = studyConfig.uiConfig;
 
     if (!urlParticipantIdParam || !studyEndMsg?.includes('{PARTICIPANT_ID}')) {
@@ -123,7 +137,7 @@ export function StudyEnd() {
 
     // return the study end message with the participant ID
     return studyEndMsg.replace(/\{PARTICIPANT_ID\}/g, () => participantId);
-  }, [studyConfig, participantId]);
+  }, [studyConfig, participantId, studyId]);
 
   return (
     <Center style={{ height: '100%' }}>
@@ -143,6 +157,12 @@ export function StudyEnd() {
               </Center>
             </>
           )}
+        {completed && sessionStatus?.nextSessionUrl && (
+          <>
+            <Text mt="md">Session {sessionStatus.nextSessionNumber} is available from {new Date(sessionStatus.nextSessionAvailableAt!).toLocaleString()}.</Text>
+            <Text component="a" href={sessionStatus.nextSessionUrl} mt="sm" c="blue">Open Session {sessionStatus.nextSessionNumber}</Text>
+          </>
+        )}
       </Flex>
     </Center>
   );
