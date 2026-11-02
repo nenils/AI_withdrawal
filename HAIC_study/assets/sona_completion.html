@@ -20,7 +20,8 @@
 <body>
   <main>
     <h1>Submitting this study part</h1>
-    <div id="status" aria-live="polite"><p>Please keep this page open while your SONA credit is granted.</p></div>
+    <div id="status" aria-live="polite"><p>Please keep this page open while your submission is confirmed.</p></div>
+    <p id="nextSession" hidden></p>
     <button id="retry" type="button" hidden>Try again</button>
   </main>
   <script>
@@ -35,30 +36,44 @@
     function submit() {
       if (persistenceError) {
         status.className = "error";
-        status.textContent = "Your answers could not be uploaded. Keep this tab open, check your connection, and reload to retry before claiming credit.";
+        status.textContent = "Your answers could not be uploaded. Keep this tab open, check your connection, and reload to retry before finishing.";
         return;
       }
       retry.hidden = true;
       status.className = "";
-      status.innerHTML = "<p>Please keep this page open while your SONA credit is granted.</p>";
+      status.innerHTML = "<p>Please keep this page open while your submission is confirmed.</p>";
       fetch("/api/sona/complete-part", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({participantId:participantId, partNumber:partNumber})
       }).then(function (response) {
         return response.json().then(function (body) {
-          if (!response.ok) throw new Error(body.detail || "Credit granting failed");
+          if (!response.ok) throw new Error(body.detail || "Submission failed");
           return body;
         });
       }).then(function (result) {
         status.className = "success";
         status.innerHTML = partNumber === 4
-          ? "<p><strong>Study complete.</strong> Your final SONA credit has been granted. Select Finish below to close the study.</p>"
-          : "<p><strong>Part " + partNumber + " complete.</strong> Your SONA credit has been granted. SONA will make Part " + (partNumber + 1) + " available after the configured 24-hour separation. Select Finish below to close this part.</p>";
-        Revisit.postAnswers({sonaCreditGranted:['confirmed'], sonaPart:partNumber, studyCompleted:result.studyCompleted});
+          ? "<p><strong>Study complete.</strong> Your answers have been saved. Select Finish below to close the study.</p>"
+          : "<p><strong>Part " + partNumber + " complete.</strong> Your answers have been saved. The next session opens 24 hours after submission. Select Finish below to close this part.</p>";
+        if (result.nextSessionUrl) {
+          var next = document.getElementById("nextSession");
+          next.textContent = "Available from " + new Date(result.nextSessionAvailableAt).toLocaleString() + ". ";
+          var link = document.createElement("a");
+          link.href = result.nextSessionUrl;
+          link.textContent = "Open Session " + result.nextSessionNumber;
+          next.appendChild(link);
+          next.hidden = false;
+        }
+        Revisit.postAnswers({
+          sessionSubmissionConfirmed:['confirmed'],
+          sonaCreditGranted:['confirmed'],
+          sonaCreditStatus:result.creditPending ? "pending" : "confirmed",
+          sonaPart:partNumber, studyCompleted:result.studyCompleted
+        });
       }).catch(function (error) {
         status.className = "error";
-        status.innerHTML = "<p><strong>Credit could not be confirmed.</strong> " + error.message + ". Do not close the page; try again or contact the researcher.</p>";
+        status.innerHTML = "<p><strong>Submission could not be confirmed.</strong> " + error.message + ". Do not close the page; try again or contact the researcher.</p>";
         retry.hidden = false;
       });
     }

@@ -21,7 +21,7 @@
     "withSidebar": true,
     "enumerateQuestions": true,
     "urlParticipantIdParam": "sona_id",
-    "studyEndMsg": "Thank you. Part 3 is complete, and your SONA credit has been granted. SONA will provide access to the next part after the configured separation.",
+    "studyEndMsg": "Thank you. Part 3 is complete and your answers have been saved. The next session is available 24 hours after submission.",
     "numSequences": 1
   },
   "importedLibraries": [
