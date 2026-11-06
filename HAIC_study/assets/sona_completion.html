@@ -56,6 +56,9 @@
         status.innerHTML = partNumber === 4
           ? "<p><strong>Study complete.</strong> Your answers have been saved. Select Finish below to close the study.</p>"
           : "<p><strong>Part " + partNumber + " complete.</strong> Your answers have been saved. The next session opens 24 hours after submission. Select Finish below to close this part.</p>";
+        if (result.platform === "prolific") {
+          status.innerHTML = "<p><strong>Part " + partNumber + " complete.</strong> Your answers have been saved. Select Finish below to finish uploading and return to Prolific.</p>";
+        }
         if (result.nextSessionUrl) {
           var next = document.getElementById("nextSession");
           next.textContent = "Available from " + new Date(result.nextSessionAvailableAt).toLocaleString() + ". ";
@@ -68,7 +71,7 @@
         Revisit.postAnswers({
           sessionSubmissionConfirmed:['confirmed'],
           sonaCreditGranted:['confirmed'],
-          sonaCreditStatus:result.creditPending ? "pending" : "confirmed",
+          sonaCreditStatus:result.platform === "prolific" ? "not-applicable" : (result.creditPending ? "pending" : "confirmed"),
           sonaPart:partNumber, studyCompleted:result.studyCompleted
         });
       }).catch(function (error) {
@@ -85,7 +88,7 @@
       partNumber = Number(data.partNumber);
       if (!participantId || partNumber < 1 || partNumber > 4) {
         status.className = "error";
-        status.innerHTML = "<p>This SONA link is incomplete. Please reopen the study from SONA.</p>";
+        status.innerHTML = "<p>This study link is incomplete. Please reopen your original participant link.</p>";
         return;
       }
       submit();
