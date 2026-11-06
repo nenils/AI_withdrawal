@@ -124,6 +124,22 @@ class FakeExportSource:
 
 
 class StudyExportTests(unittest.TestCase):
+    def test_prolific_wave_identifiers_are_preserved_in_combined_export(self):
+        source = FakeExportSource()
+        participant = source.participants()[0]
+        participant['recruitment'] = {
+            'platform': 'prolific', 'cohort': 'b',
+            'parts': {'1': {'studyId': 'b1' + '0' * 22, 'sessionIds': ['1' * 24]}},
+        }
+        source.participants = lambda: [participant]
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / 'export.zip'
+            create_export(destination, source)
+            with zipfile.ZipFile(destination) as archive:
+                status = next(csv.DictReader(archive.read('participant_status.csv').decode().splitlines()))
+                self.assertEqual(status['recruitment_platform'], 'prolific')
+                self.assertEqual(json.loads(status['recruitment_json']), participant['recruitment'])
+
     def test_combines_all_study_data_in_one_zip(self):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "export.zip"

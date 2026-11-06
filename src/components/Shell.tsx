@@ -57,6 +57,7 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
   const [startupError, setStartupError] = useState<string | null>(null);
   const [partLock, setPartLock] = useState<{
     participantId: string; part: number; completed: boolean;
+    platform?: 'prolific'; completionUrl?: string | null;
     nextSessionNumber?: number | null; nextSessionAvailableAt?: string | null; nextSessionUrl?: string | null;
   } | null>(null);
   const [creditRetrying, setCreditRetrying] = useState(false);
@@ -232,6 +233,12 @@ export function Shell({ globalConfig }: { globalConfig: GlobalConfig }) {
       <div style={{ padding: 24 }}>
         <Title order={2} mb={8}>{partLock.completed ? 'You have already completed this session.' : 'Your answers have been submitted.'}</Title>
         <Text>Your recorded answers will not be changed.</Text>
+        {partLock.platform === 'prolific' && partLock.completionUrl && (
+          <Button component="a" href={partLock.completionUrl} mt="md">Return to Prolific</Button>
+        )}
+        {partLock.platform === 'prolific' && partLock.nextSessionAvailableAt && (
+          <Text mt="md">The next session opens no earlier than {new Date(partLock.nextSessionAvailableAt).toLocaleString()}. Please join it through Prolific.</Text>
+        )}
         {partLock.nextSessionUrl && (
           <>
             {partLock.nextSessionAvailableAt && <Text mt="md">Session {partLock.nextSessionNumber} is available from {new Date(partLock.nextSessionAvailableAt).toLocaleString()}.</Text>}

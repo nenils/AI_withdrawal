@@ -1,5 +1,5 @@
 import {
-  Center, Flex, Loader, Space, Text,
+  Button, Center, Flex, Loader, Space, Text,
 } from '@mantine/core';
 import {
   useEffect, useState, useCallback, useMemo,
@@ -21,6 +21,7 @@ export function StudyEnd() {
   const isAnalysis = useIsAnalysis();
   const studyId = useStudyId();
   const [sessionStatus, setSessionStatus] = useState<WithdrawalPartStatus | null>(null);
+  const [returnLinkError, setReturnLinkError] = useState(false);
 
   const [completed, setCompleted] = useState(false);
   const [uploadError, setUploadError] = useState(false);
@@ -108,12 +109,28 @@ export function StudyEnd() {
   useEffect(() => {
     if (!completed || isAnalysis || storageEngine?.getEngine() !== 'supabase' || !/^HAIC_part_[1-4]$/.test(studyId)) return;
     let cancelled = false;
-    storageEngine.getCurrentParticipantId()
-      .then((id) => withdrawalPartStatus(id, Number(studyId.slice(-1))))
-      .then((status) => { if (!cancelled) setSessionStatus(status); })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    let timer: ReturnType<typeof setTimeout>;
+    async function loadStatus() {
+      try {
+        const id = await storageEngine!.getCurrentParticipantId();
+        const status = await withdrawalPartStatus(id, Number(studyId.slice(-1)));
+        if (!cancelled) { setSessionStatus(status); setReturnLinkError(false); }
+      } catch {
+        if (!cancelled) {
+          setReturnLinkError(true);
+          timer = setTimeout(loadStatus, 2000);
+        }
+      }
+    }
+    loadStatus();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [completed, isAnalysis, storageEngine, studyId]);
+
+  useEffect(() => {
+    if (!completed || isAnalysis || sessionStatus?.platform !== 'prolific' || !sessionStatus.completionUrl) return;
+    const timer = setTimeout(() => window.location.assign(sessionStatus.completionUrl!), 5000);
+    return () => clearTimeout(timer);
+  }, [completed, isAnalysis, sessionStatus]);
   const [dataCollectionEnabled, setDataCollectionEnabled] = useState<boolean | null>(null);
   useEffect(() => {
     const checkDataCollectionEnabled = async () => {
@@ -161,6 +178,20 @@ export function StudyEnd() {
           <>
             <Text mt="md">Session {sessionStatus.nextSessionNumber} is available from {new Date(sessionStatus.nextSessionAvailableAt!).toLocaleString()}.</Text>
             <Text component="a" href={sessionStatus.nextSessionUrl} mt="sm" c="blue">Open Session {sessionStatus.nextSessionNumber}</Text>
+          </>
+        )}
+        {completed && returnLinkError && <Text c="red" mt="md">Your answers are saved, but the return information could not be loaded. Please keep this tab open; we are retrying.</Text>}
+        {completed && sessionStatus?.platform === 'prolific' && (
+          <>
+            {sessionStatus.nextSessionAvailableAt && (
+              <Text mt="md">The next session opens no earlier than {new Date(sessionStatus.nextSessionAvailableAt).toLocaleString()}. Please join it through Prolific.</Text>
+            )}
+            {sessionStatus.completionUrl && (
+              <>
+                <Text mt="md">Your submission is saved. Returning to Prolific...</Text>
+                <Button component="a" href={sessionStatus.completionUrl} mt="sm">Return to Prolific</Button>
+              </>
+            )}
           </>
         )}
       </Flex>

@@ -43,14 +43,19 @@ test('unavailable session verification fails closed before questionnaire initial
   expect(writes).toHaveLength(0);
 });
 
-for (const creditPending of [false, true]) {
-test(`submission finishes and offers the next link without rewriting answers (SONA pending=${creditPending})`, async ({ page }) => {
+for (const platform of ['sona', 'prolific']) {
+for (const creditPending of platform === 'sona' ? [false, true] : [false]) {
+test(`submission finishes without rewriting answers (${platform}, credit pending=${creditPending})`, async ({ page }) => {
   const rows = new Map<string, { docId: string; data: unknown }>();
   const files = new Map<string, string>();
   let completed = false;
   let original: Record<string, unknown> | null = null;
   let uploadsAfterCredit = 0;
   const participantId = 'first-submission';
+  const completionPath = `/api/prolific/complete?participantId=${participantId}&partNumber=2`;
+  // Browser tests stop at our guard; API tests assert the final HTTP 302 without contacting Prolific.
+  await page.route('https://*.prolific.com/**', (route) => route.abort());
+  await page.route(`**${completionPath}`, (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Mock verified return</h1>' }));
   await page.route('https://api.ipify.org/**', (route) => route.fulfill({ json: { ip: '127.0.0.1' } }));
   await page.route('https://test.supabase.co/**', async (route) => {
     const request = route.request();
@@ -95,9 +100,10 @@ test(`submission finishes and offers the next link without rewriting answers (SO
   await page.route('**/api/withdrawal/part-status', (route) => route.fulfill({ json: {
     locked: completed, completed, credited: completed && !creditPending, submitted: completed,
     submission: original ? { ...original, completed } : null,
+    ...(platform === 'prolific' ? { platform, completionUrl: completed ? completionPath : null } : {}),
     nextSessionNumber: completed ? 3 : null,
     nextSessionAvailableAt: completed ? '2026-11-03T12:00:00Z' : null,
-    nextSessionUrl: completed ? `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}` : null,
+    nextSessionUrl: completed && platform === 'sona' ? `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}` : null,
   } }));
   await page.route('**/api/withdrawal/state', (route) => route.fulfill({ json: {
     participantId, condition: 'control', currentSession: 2, partGameComplete: true,
@@ -111,11 +117,13 @@ test(`submission finishes and offers the next link without rewriting answers (SO
     completed = true;
     await route.fulfill({ json: {
       completed: true, credited: !creditPending, creditPending, studyCompleted: false,
+      ...(platform === 'prolific' ? { platform, completionUrl: completionPath } : {}),
       nextSessionNumber: 3, nextSessionAvailableAt: '2026-11-03T12:00:00Z',
-      nextSessionUrl: `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}`,
+      nextSessionUrl: platform === 'sona' ? `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}` : null,
     } });
   });
   await page.goto(`/HAIC_part_2/?sona_id=${participantId}`);
+  await expect(page.getByRole('link', { name: 'Return to Prolific' })).toHaveCount(0);
   await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
   await page.getByRole('textbox').fill('MM-S2-0123456789AB');
   await page.getByRole('button', { name: 'Next', exact: true }).click();
@@ -127,16 +135,30 @@ test(`submission finishes and offers the next link without rewriting answers (SO
   for (const slider of await page.getByRole('slider').all()) { await slider.focus(); await slider.press('ArrowRight'); }
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.frameLocator('iframe').getByText('Your answers have been saved.', { exact: false })).toBeVisible();
-  await expect(page.frameLocator('iframe').getByRole('link', { name: 'Open Session 3' })).toHaveAttribute('href', `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}`);
+  if (platform === 'sona') {
+    await expect(page.frameLocator('iframe').getByRole('link', { name: 'Open Session 3' })).toHaveAttribute('href', `http://127.0.0.1:8185/HAIC_part_3/?sona_id=${participantId}`);
+  } else {
+    await expect(page.frameLocator('iframe').getByRole('link', { name: 'Open Session 3' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Return to Prolific' })).toHaveCount(0);
+  }
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.getByText('Thank you. Part 2 is complete and your answers have been saved.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open Session 3' })).toBeVisible();
+  if (platform === 'sona') {
+    await expect(page.getByRole('link', { name: 'Open Session 3' })).toBeVisible();
+  } else {
+    await expect(page.getByRole('link', { name: 'Return to Prolific' })).toHaveAttribute('href', completionPath);
+    await expect(page.getByRole('link', { name: 'Open Session 3' })).toHaveCount(0);
+    await expect(page).toHaveURL(`http://127.0.0.1:8185${completionPath}`, { timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Mock verified return' })).toBeVisible();
+  }
   expect(uploadsAfterCredit).toBe(0);
-  await page.reload();
+  await page.goto(`/HAIC_part_2/?sona_id=${participantId}`);
   await expect(page.getByRole('heading', { name: 'You have already completed this session.' })).toBeVisible();
   await expect(page.locator('iframe')).toHaveCount(0);
   expect(uploadsAfterCredit).toBe(0);
+  if (platform === 'prolific') await expect(page.getByRole('link', { name: 'Return to Prolific' })).toHaveAttribute('href', completionPath);
 });
+}
 }
 
 test('analysis separates original gameplay from the short game-page visit', async ({ page }) => {

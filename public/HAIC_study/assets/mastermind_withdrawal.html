@@ -327,7 +327,7 @@
         postRevisit();
         return;
       }
-      if (!state.game) throw new Error("No active game was returned for this SONA part");
+      if (!state.game) throw new Error("No active game was returned for this session");
       if (chatRound !== state.game.round) {
         chatRound = state.game.round;
         chatMessages = [];

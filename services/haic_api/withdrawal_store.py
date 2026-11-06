@@ -143,7 +143,7 @@ class WithdrawalStore:
         )
         return rows[0]
 
-    def get_or_create(self, participant_id: str, condition: str | None = None) -> dict[str, Any]:
+    def get_or_create(self, participant_id: str, condition: str | None = None, recruitment: dict | None = None) -> dict[str, Any]:
         if condition is not None and condition not in CONDITIONS:
             raise ValueError("Unknown condition")
         with self._lock:
@@ -171,7 +171,34 @@ class WithdrawalStore:
                 "game_state": create_game_state(1, now),
                 "created_at": iso(now),
                 "updated_at": iso(now),
+                **({"recruitment": copy.deepcopy(recruitment)} if recruitment else {}),
             })
+
+    def register_prolific(self, participant_id, condition, cohort, part, study_id, session_id):
+        with self._lock:
+            record = self.get(participant_id)
+            if record is None and part != 1:
+                raise ValueError("Complete Session 1 before opening a later session")
+            if record is None:
+                # Enroll in one write: a missing migration must not leave an unbound participant behind.
+                return self.get_or_create(participant_id, condition, recruitment={
+                    "platform": "prolific", "cohort": cohort,
+                    "parts": {str(part): {"studyId": study_id, "sessionIds": [session_id]}},
+                })
+            if record and (record.get("recruitment") or {}).get("platform") != "prolific":
+                raise ValueError("This participant ID is already registered through another recruitment platform")
+            if record["condition"] != condition or record["recruitment"]["cohort"] != cohort:
+                raise ValueError("Please return to your original Prolific project")
+            record = self.get_or_create(participant_id, condition)
+            recruitment = record["recruitment"]
+            previous = recruitment["parts"].get(str(part))
+            if previous and previous["studyId"] != study_id:
+                raise ValueError("This session is already linked to another Prolific study")
+            wave = recruitment["parts"].setdefault(str(part), {"studyId": study_id, "sessionIds": []})
+            if session_id not in wave["sessionIds"]:
+                wave["sessionIds"].append(session_id)
+            record["updated_at"] = iso(utc_now())
+            return self.save(record)
 
     def append_events(self, participant_id: str, events: list[dict[str, Any]]) -> int:
         if not events:
@@ -199,6 +226,9 @@ class WithdrawalStore:
         record: dict[str, Any],
         expected_session: int | None = None,
     ) -> dict[str, Any]:
+        recruitment = record.get("recruitment") or {}
+        if recruitment.get("platform") == "prolific" and str(expected_session or record["current_session"]) not in recruitment.get("parts", {}):
+            raise PermissionError("Please open this session from its study link on Prolific")
         if expected_session is None or expected_session == record["current_session"]:
             self.check_session_available(record)
         if record.get("completed_at") or record.get("game_state"):
@@ -218,7 +248,7 @@ class WithdrawalStore:
             return
         available = record.get("next_session_available_at")
         if available and utc_now() < datetime.fromisoformat(available.replace("Z", "+00:00")):
-            raise PermissionError(f"The next session is available at {available}. Please return using SONA at that time.")
+            raise PermissionError(f"The next session is available at {available}. Please return at that time.")
 
     def public_state(
         self,
@@ -230,7 +260,7 @@ class WithdrawalStore:
         credited_parts = record.get("credited_parts") or []
         if expected_session is not None:
             if expected_session > record["current_session"]:
-                raise PermissionError("Complete the preceding SONA part before opening this part")
+                raise PermissionError("Complete the preceding session before opening this part")
             if expected_session < record["current_session"] and not part_completed(record, expected_session):
                 raise ValueError("This study part does not match the participant record")
         record = self.ensure_session_started(record, expected_session)
@@ -287,7 +317,7 @@ class WithdrawalStore:
         with self._lock:
             record = self.get_or_create(participant_id, condition)
             if expected_session is not None and expected_session != record["current_session"]:
-                raise PermissionError("This SONA part is not the participant's current part")
+                raise PermissionError("This is not the participant's current session")
             record = self.ensure_session_started(record, expected_session)
             game = record.get("game_state")
             if record.get("completed_at"):

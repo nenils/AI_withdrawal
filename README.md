@@ -12,6 +12,11 @@ This repository contains the four-part longitudinal Mastermind experiment for st
 
 See [AI_WITHDRAWAL_STUDY.md](AI_WITHDRAWAL_STUDY.md) for the experimental and SONA configuration.
 
+For Prolific recruitment, see [PROLIFIC_SETUP.md](PROLIFIC_SETUP.md): three longitudinal
+projects, four waves each, fixed condition per participant, and guarded completion redirects.
+All 12 entry links are in [PROLIFIC_LINKS.txt](PROLIFIC_LINKS.txt).
+Existing SONA records and links remain supported; do not reset the database when switching recruitment.
+
 ## Local development
 
 Install dependencies and start reVISit:

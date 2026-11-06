@@ -4,6 +4,8 @@ export interface WithdrawalPartStatus {
   locked: boolean;
   credited: boolean;
   completed?: boolean;
+  platform?: 'prolific';
+  completionUrl?: string | null;
   nextSessionNumber?: number | null;
   nextSessionAvailableAt?: string | null;
   nextSessionUrl?: string | null;

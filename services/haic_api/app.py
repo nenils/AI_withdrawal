@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field
 
 from rl_model import MastermindRLModel
 from withdrawal_store import WithdrawalStore, part_completed
-from completion_validation import validate_questionnaires, validate_session_code
+from completion_validation import validate_questionnaires, validate_session_code, validate_gameplay
+from prolific import COHORTS, validate_identifier, wave_config, completion_details
 from study_export import SupabaseExportSource
 from submission_store import SubmissionStore
 
@@ -25,7 +26,6 @@ OPENROUTER_BASE_URL = os.getenv(
     "https://openrouter.ai/api/v1/chat/completions",
 )
 STUDY_PUBLIC_URL = os.getenv("STUDY_PUBLIC_URL", "http://localhost:8080")
-PROLIFIC_COMPLETION_CODE = os.getenv("PROLIFIC_COMPLETION_CODE", "").strip()
 SONA_CREDIT_TEST_MODE = os.getenv("SONA_CREDIT_TEST_MODE", "false").lower() == "true"
 SONA_COMPLETION_URLS = {
     part: os.getenv(f"SONA_PART_{part}_COMPLETION_URL", "").strip()
@@ -111,7 +111,8 @@ def next_session_details(record):
     return {
         "nextSessionNumber": part,
         "nextSessionAvailableAt": record.get("next_session_available_at"),
-        "nextSessionUrl": f"{STUDY_PUBLIC_URL.rstrip('/')}/HAIC_part_{part}/?sona_id={participant}",
+        "nextSessionUrl": None if (record.get("recruitment") or {}).get("platform") == "prolific"
+        else f"{STUDY_PUBLIC_URL.rstrip('/')}/HAIC_part_{part}/?sona_id={participant}",
     }
 
 
@@ -166,6 +167,7 @@ def part_status(payload: PartStatusPayload):
             data["completed"] = completed
         return {"locked": locked, "completed": completed, "credited": credited, "submitted": saved is not None,
                 "submission": data, "submittedAt": saved["submitted_at"] if saved else None,
+                **completion_details(record, payload.partNumber, completed and saved is not None),
                 **(next_session_details(record) if completed else {})}
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -314,6 +316,7 @@ def withdrawal_events(payload: WithdrawalEventsPayload) -> dict[str, int]:
 
 
 @app.post("/api/sona/complete-part")
+@app.post("/api/study/complete-part")
 def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
     try:
         record = WITHDRAWAL_STORE.part_ready_for_credit(
@@ -322,6 +325,11 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
         )
         already_credited = payload.partNumber in (record.get("credited_parts") or [])
         already_completed = part_completed(record, payload.partNumber)
+        prolific = (record.get("recruitment") or {}).get("platform") == "prolific"
+        if prolific:
+            # Neither a copied completion code nor a client-side "finished" flag is sufficient.
+            validate_gameplay(record, payload.partNumber)
+            completion_details(record, payload.partNumber, True, redirect=True)
         if not already_completed:
             if not WITHDRAWAL_STORE.persistent:
                 raise ValueError("Persistent questionnaire storage is required before granting credit")
@@ -339,7 +347,7 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
                 payload.participantId, payload.partNumber, saved["submitted_at"],
             )
         credit_pending = False
-        if not already_credited:
+        if not already_credited and not prolific:
             try:
                 if not payload.participantId.startswith("debug-"):
                     grant_sona_credit(payload.partNumber, payload.participantId)
@@ -349,11 +357,12 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
                 credit_pending = True
         return {
             "completed": True,
-            "credited": not credit_pending,
+            "credited": not credit_pending and not prolific,
             "creditPending": credit_pending,
             "alreadyCredited": already_credited,
             "partNumber": payload.partNumber,
             "studyCompleted": bool(record.get("completed_at")),
+            **completion_details(record, payload.partNumber, True),
             **next_session_details(record),
         }
     except PermissionError as exc:
@@ -364,18 +373,52 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-@app.get("/api/prolific/complete")
-def complete_prolific() -> RedirectResponse:
-    if not PROLIFIC_COMPLETION_CODE:
-        raise HTTPException(
-            status_code=503,
-            detail="Prolific completion code is not configured on the server.",
-        )
+@app.get("/api/prolific/start/{cohort}/{part_number}")
+def start_prolific(cohort: str, part_number: int, PROLIFIC_PID: str = "", STUDY_ID: str = "", SESSION_ID: str = ""):
+    try:
+        for value, name in ((PROLIFIC_PID, "PROLIFIC_PID"), (STUDY_ID, "STUDY_ID"), (SESSION_ID, "SESSION_ID")):
+            validate_identifier(value, name)
+        expected_study, _ = wave_config(cohort, part_number)
+        if STUDY_ID != expected_study:
+            raise ValueError("This Prolific study does not match the session link. Please contact the researcher.")
+        existing = WITHDRAWAL_STORE.get(PROLIFIC_PID)
+        if existing:
+            existing = reconcile_pending_parts(existing, part_number)
+            if part_number > existing["current_session"]:
+                raise ValueError("Complete the preceding session before opening this session")
+            if part_number == existing["current_session"] and not part_completed(existing, part_number):
+                WITHDRAWAL_STORE.check_session_available(existing)
+        WITHDRAWAL_STORE.register_prolific(PROLIFIC_PID, COHORTS[cohort], cohort, part_number, STUDY_ID, SESSION_ID)
+        query = urllib.parse.urlencode({"sona_id": PROLIFIC_PID, "PROLIFIC_PID": PROLIFIC_PID,
+                                        "STUDY_ID": STUDY_ID, "SESSION_ID": SESSION_ID})
+        return RedirectResponse(url=f"/HAIC_part_{part_number}/?{query}", status_code=302)
+    except PermissionError as exc:
+        raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return RedirectResponse(
-        url=f"https://app.prolific.com/submissions/complete?cc={PROLIFIC_COMPLETION_CODE}",
-        status_code=302,
-    )
+
+@app.get("/api/prolific/complete")
+def complete_prolific(participantId: str, partNumber: int):
+    try:
+        if partNumber not in range(1, 5):
+            raise ValueError("Unknown study session")
+        record = WITHDRAWAL_STORE.get(participantId)
+        saved = SubmissionStore(WITHDRAWAL_STORE).get(participantId, partNumber)
+        if not record or not saved or (record.get("recruitment") or {}).get("platform") != "prolific":
+            raise ValueError("Complete and submit this session before returning to Prolific")
+        validate_gameplay(record, partNumber)
+        validate_questionnaires(saved["data"], partNumber, record["condition"])
+        validate_session_code(saved["data"], record, partNumber)
+        record = reconcile_submission(record, saved, participantId, partNumber)
+        details = completion_details(record, partNumber, True, redirect=True)
+        return RedirectResponse(url=details["completionUrl"], status_code=302)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/api/rl/predict")

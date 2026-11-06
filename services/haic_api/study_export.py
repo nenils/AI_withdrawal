@@ -60,7 +60,7 @@ class SupabaseExportSource:
     def participants(self) -> list[dict[str, Any]]:
         return list(self.iter_table(
             "withdrawal_participants",
-            "participant_id,condition,current_session,completed_at,completed_sessions,credited_parts,game_state,created_at,updated_at",
+            "*",
             "participant_id.asc",
         ))
 
@@ -285,6 +285,8 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
             "participant_id": participant_id,
             "condition": participant["condition"],
             "current_session": participant.get("current_session"),
+            "recruitment_platform": (participant.get("recruitment") or {}).get("platform", "sona"),
+            "recruitment_json": _json(participant.get("recruitment") or {}),
             "credited_parts_json": _json(participant.get("credited_parts") or []),
             "completed_parts_json": _json([
                 part for part in PART_NUMBERS if part_completed(participant, part) or any(
@@ -309,7 +311,7 @@ def create_export(destination: str | Path, source: SupabaseExportSource | Any) -
     counts: dict[str, int] = {}
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         counts["participants"] = _write_csv(archive, "participant_status.csv", [
-            "participant_id", "condition", "current_session", "credited_parts_json", "completed_parts_json",
+            "participant_id", "condition", "current_session", "recruitment_platform", "recruitment_json", "credited_parts_json", "completed_parts_json",
             "completed_session_count", "study_completed_at", "created_at", "updated_at",
             *[f"part_{part}_{suffix}" for part in PART_NUMBERS for suffix in ("data_found", "completed")],
             "all_four_parts_found", "all_four_parts_completed",
