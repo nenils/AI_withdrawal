@@ -114,10 +114,24 @@ class ProlificTests(unittest.TestCase):
     def test_mismatched_wave_missing_id_and_cross_condition_are_rejected(self):
         self.assertEqual(self.enter(PROLIFIC_PID="").status_code, 409)
         self.assertEqual(self.enter(STUDY_ID="f" * 24).status_code, 409)
-        self.assertEqual(self.enter(SESSION_ID="{{%SESSION_ID%}}").status_code, 409)
+        self.assertEqual(self.enter(PROLIFIC_PID="{{%PROLIFIC_PID%}}").status_code, 409)
         self.assertEqual(self.enter().status_code, 302)
         self.assertEqual(self.enter("b").status_code, 409)
         self.assertEqual(self.store.get(PID)["condition"], "control")
+
+    def test_session_id_is_optional_and_invalid_preview_values_are_ignored(self):
+        for value in ("", "{{%SESSION_ID%}}", "PREVIEW", "invalid"):
+            with self.subTest(value=value):
+                response = self.enter(SESSION_ID=value)
+                self.assertEqual(response.status_code, 302, response.text)
+                self.assertNotIn("SESSION_ID=", response.headers["location"])
+                self.assertEqual(self.store.get(PID)["recruitment"]["parts"]["1"]["sessionIds"], [])
+        study_id, _ = wave_config("a", 1)
+        response = self.client.get("/api/prolific/start/a/1", params={"PROLIFIC_PID": PID, "STUDY_ID": study_id})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.enter().status_code, 302)
+        self.assertEqual(self.enter(SESSION_ID="").status_code, 302)
+        self.assertEqual(self.store.get(PID)["recruitment"]["parts"]["1"]["sessionIds"], [SESSION])
 
     def test_missing_or_untrusted_return_url_is_rejected_before_recruitment(self):
         for value in ("", "https://example.com/submissions/complete?cc=BAD", "http://app.prolific.com/submissions/complete?cc=BAD"):
@@ -181,7 +195,7 @@ class ProlificTests(unittest.TestCase):
             self.saved.clear()
             for part in range(1, 5):
                 with self.subTest(cohort=cohort, part=part), patch("withdrawal_store.utc_now", return_value=utc_now() + timedelta(days=part)):
-                    self.assertEqual(self.enter(cohort, part).status_code, 302)
+                    self.assertEqual(self.enter(cohort, part, SESSION_ID="").status_code, 302)
                     state = self.client.post("/api/withdrawal/state", json={"participantId": PID, "partNumber": part})
                     self.assertEqual(state.status_code, 200, state.text)
                     for game in range(1, 5):

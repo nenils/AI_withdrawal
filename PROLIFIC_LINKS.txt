@@ -1,35 +1,35 @@
 CONTROL - Session 1
-https://iivm11.cit.tum.de/api/prolific/start/a/1?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/a/1?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 CONTROL - Session 2
-https://iivm11.cit.tum.de/api/prolific/start/a/2?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/a/2?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 CONTROL - Session 3
-https://iivm11.cit.tum.de/api/prolific/start/a/3?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/a/3?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 CONTROL - Session 4
-https://iivm11.cit.tum.de/api/prolific/start/a/4?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/a/4?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 ADVISOR - Session 1
-https://iivm11.cit.tum.de/api/prolific/start/b/1?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/b/1?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 ADVISOR - Session 2
-https://iivm11.cit.tum.de/api/prolific/start/b/2?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/b/2?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 ADVISOR - Session 3
-https://iivm11.cit.tum.de/api/prolific/start/b/3?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/b/3?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 ADVISOR - Session 4
-https://iivm11.cit.tum.de/api/prolific/start/b/4?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/b/4?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 JUDGE - Session 1
-https://iivm11.cit.tum.de/api/prolific/start/c/1?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/c/1?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 JUDGE - Session 2
-https://iivm11.cit.tum.de/api/prolific/start/c/2?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/c/2?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 JUDGE - Session 3
-https://iivm11.cit.tum.de/api/prolific/start/c/3?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/c/3?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 
 JUDGE - Session 4
-https://iivm11.cit.tum.de/api/prolific/start/c/4?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+https://iivm11.cit.tum.de/api/prolific/start/c/4?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}

@@ -5,7 +5,7 @@ from prolific import COHORTS
 
 
 def study_links(base_url):
-    params = "PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
+    params = "PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}"
     for cohort, condition in COHORTS.items():
         for part in range(1, 5):
             yield condition, part, f"{base_url.rstrip('/')}/api/prolific/start/{cohort}/{part}?{params}"

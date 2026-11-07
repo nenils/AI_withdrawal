@@ -174,7 +174,7 @@ class WithdrawalStore:
                 **({"recruitment": copy.deepcopy(recruitment)} if recruitment else {}),
             })
 
-    def register_prolific(self, participant_id, condition, cohort, part, study_id, session_id):
+    def register_prolific(self, participant_id, condition, cohort, part, study_id, session_id=None):
         with self._lock:
             record = self.get(participant_id)
             if record is None and part != 1:
@@ -183,7 +183,7 @@ class WithdrawalStore:
                 # Enroll in one write: a missing migration must not leave an unbound participant behind.
                 return self.get_or_create(participant_id, condition, recruitment={
                     "platform": "prolific", "cohort": cohort,
-                    "parts": {str(part): {"studyId": study_id, "sessionIds": [session_id]}},
+                    "parts": {str(part): {"studyId": study_id, "sessionIds": [session_id] if session_id else []}},
                 })
             if record and (record.get("recruitment") or {}).get("platform") != "prolific":
                 raise ValueError("This participant ID is already registered through another recruitment platform")
@@ -195,7 +195,7 @@ class WithdrawalStore:
             if previous and previous["studyId"] != study_id:
                 raise ValueError("This session is already linked to another Prolific study")
             wave = recruitment["parts"].setdefault(str(part), {"studyId": study_id, "sessionIds": []})
-            if session_id not in wave["sessionIds"]:
+            if session_id and session_id not in wave["sessionIds"]:
                 wave["sessionIds"].append(session_id)
             record["updated_at"] = iso(utc_now())
             return self.save(record)

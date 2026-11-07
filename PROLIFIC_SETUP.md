@@ -31,9 +31,9 @@ docker compose --env-file .env.docker \
   up -d --build --force-recreate study haic-api
 ```
 
-5. In Prolific, choose URL-parameter capture for `PROLIFIC_PID`, `STUDY_ID`, and `SESSION_ID`.
+5. In Prolific, choose URL-parameter capture for `PROLIFIC_PID` and `STUDY_ID`.
    Paste the corresponding entry link printed below. Preserve the placeholder syntax exactly.
-   An unsubstituted preview placeholder is intentionally rejected: use Prolific's real test identifiers or
+   An unsubstituted participant/study placeholder is intentionally rejected: use Prolific's real test identifiers or
    the existing SONA debug CLI for gameplay-only testing. Do not put real payment redirects in a mock test.
 
 ## All 12 Entry Links
@@ -51,7 +51,7 @@ docker compose --env-file .env.docker \
 Each link has this exact query string:
 
 ```text
-?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}
 ```
 
 | Condition (Internal) | Session 1 Base URL | Session 2 Base URL | Session 3 Base URL | Session 4 Base URL |
@@ -65,8 +65,10 @@ Do not give Prolific the bare `/HAIC_part_N/` pages as recruitment links.
 
 ## Identity, Access and Completion
 
-- The same Prolific participant ID joins all four waves. Study ID and submission/session IDs are stored per wave.
-- A neutral entry endpoint validates all three identifiers and the configured wave ID, fixes the condition,
+- The same Prolific participant ID joins all four waves. The Study ID is stored per wave.
+  `SESSION_ID` is optional: valid values are recorded if supplied; missing, invalid or preview values are ignored.
+  Existing recorded session IDs are retained. No database migration is needed for this optional-ID update.
+- A neutral entry endpoint validates the participant ID and configured wave ID, fixes the condition,
   then opens the existing session page. `sona_id` in the redirected internal URL is a compatibility alias,
   not a SONA requirement. Do not use reVISit's reserved `participantId` URL parameter; that means analysis mode.
 - The next session opens **at least 24 hours after the original saved questionnaire submission**.
@@ -74,7 +76,7 @@ Do not give Prolific the bare `/HAIC_part_N/` pages as recruitment links.
 - Prolific's longitudinal feature separately requires the preceding wave to be **approved**.
   Review/approve promptly (or configure the appropriate automatic approval action in Prolific);
   the application cannot override Prolific's eligibility rules. Schedule follow-up waves accordingly.
-- Participants must enter each follow-up through its Prolific wave so its new submission ID is captured.
+- Participants must enter each follow-up through its Prolific wave so its Study ID is checked.
   No direct next-session shortcut is shown to Prolific participants.
 - Completion requires four server-recorded finished games, the participant's own game confirmation code,
   and every required questionnaire item. Losing a game after 10 guesses is valid completion.

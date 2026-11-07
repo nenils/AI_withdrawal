@@ -376,8 +376,14 @@ def complete_sona_part(payload: SonaCompletionPayload) -> dict[str, Any]:
 @app.get("/api/prolific/start/{cohort}/{part_number}")
 def start_prolific(cohort: str, part_number: int, PROLIFIC_PID: str = "", STUDY_ID: str = "", SESSION_ID: str = ""):
     try:
-        for value, name in ((PROLIFIC_PID, "PROLIFIC_PID"), (STUDY_ID, "STUDY_ID"), (SESSION_ID, "SESSION_ID")):
+        for value, name in ((PROLIFIC_PID, "PROLIFIC_PID"), (STUDY_ID, "STUDY_ID")):
             validate_identifier(value, name)
+        session_id = SESSION_ID.strip()
+        try:
+            validate_identifier(session_id, "SESSION_ID")
+        except ValueError:
+            # Optional metadata must not block entry, including unresolved preview placeholders.
+            session_id = None
         expected_study, _ = wave_config(cohort, part_number)
         if STUDY_ID != expected_study:
             raise ValueError("This Prolific study does not match the session link. Please contact the researcher.")
@@ -388,9 +394,11 @@ def start_prolific(cohort: str, part_number: int, PROLIFIC_PID: str = "", STUDY_
                 raise ValueError("Complete the preceding session before opening this session")
             if part_number == existing["current_session"] and not part_completed(existing, part_number):
                 WITHDRAWAL_STORE.check_session_available(existing)
-        WITHDRAWAL_STORE.register_prolific(PROLIFIC_PID, COHORTS[cohort], cohort, part_number, STUDY_ID, SESSION_ID)
-        query = urllib.parse.urlencode({"sona_id": PROLIFIC_PID, "PROLIFIC_PID": PROLIFIC_PID,
-                                        "STUDY_ID": STUDY_ID, "SESSION_ID": SESSION_ID})
+        WITHDRAWAL_STORE.register_prolific(PROLIFIC_PID, COHORTS[cohort], cohort, part_number, STUDY_ID, session_id)
+        params = {"sona_id": PROLIFIC_PID, "PROLIFIC_PID": PROLIFIC_PID, "STUDY_ID": STUDY_ID}
+        if session_id:
+            params["SESSION_ID"] = session_id
+        query = urllib.parse.urlencode(params)
         return RedirectResponse(url=f"/HAIC_part_{part_number}/?{query}", status_code=302)
     except PermissionError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
