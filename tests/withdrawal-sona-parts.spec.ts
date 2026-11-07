@@ -143,6 +143,24 @@ test('shared SONA assets and component library are published', async ({ request 
   }
 });
 
+test('Prolific introduction uses Prolific identity, timing and payment wording', async ({ page }) => {
+  await page.goto('/HAIC_part_1/?sona_id=intro-prolific-test&PROLIFIC_PID=intro-prolific-test');
+  await expect(page.getByRole('heading', { name: 'Mastermind Study', exact: true })).toBeVisible();
+  await expect(page.getByText(/administered through Prolific/)).toBeVisible();
+  await expect(page.getByText(/no earlier than 24 hours after your answers/)).toBeVisible();
+  await page.getByText('Information on Data Collection', { exact: true }).click();
+  await expect(page.getByText(/The study records your Prolific participant ID/)).toBeVisible();
+  await expect(page.getByText(/Payment for each part is handled through Prolific/)).toBeVisible();
+  await expect(page.getByText(/SONA|participation credit|credited completion/)).toHaveCount(0);
+  await expect(page.getByText(/Advisor|Judge|withdrawal of AI|different conditions/)).toHaveCount(0);
+});
+
+test('SONA introduction remains available for existing SONA links', async ({ page }) => {
+  await page.goto('/HAIC_part_1/?sona_id=intro-sona-test');
+  await expect(page.getByText(/administered through SONA/)).toBeVisible();
+  await expect(page.getByText(/administered through Prolific/)).toHaveCount(0);
+});
+
 test('new tutorial video loads in Session 1 instructions', async ({ page }) => {
   await page.goto('/HAIC_part_1/?sona_id=video-browser-test');
   await expect(page.getByRole('heading', { name: 'Mastermind Study', exact: true })).toBeVisible();
