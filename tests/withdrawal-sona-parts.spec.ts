@@ -91,6 +91,8 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await page.goto(`/HAIC_part_4/?sona_id=questionnaire-${condition}`);
     await expect(page.getByText(/Component.*willingness-part.*not used deterministically/)).toHaveCount(0);
     await expect(page.frameLocator('iframe').getByText("This session's games are complete")).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Complete all four games, then enter your session confirmation code here to continue.' })).toBeVisible();
+    await expect(page.getByRole('textbox')).toHaveAttribute('placeholder', 'Enter your session confirmation code');
     await page.getByRole('textbox').fill('MM-S4-0123456789AB');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByText('Thinking through the task was mainly my responsibility.')).toBeVisible();

@@ -18,7 +18,8 @@ components.mastermind = {
   responseOrder: 'fixed',
   response: [{
     id: 'played-game',
-    prompt: 'Complete all four games to continue.',
+    prompt: 'Complete all four games, then enter your session confirmation code here to continue.',
+    placeholder: 'Enter your session confirmation code',
     required: true,
     type: 'shortText',
     location: 'sidebar',

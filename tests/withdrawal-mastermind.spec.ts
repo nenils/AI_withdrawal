@@ -159,6 +159,7 @@ test('shows and records a session confirmation code after four games', async ({ 
   }));
 
   await expect(page.getByText('MM-S1-0123456789AB', { exact: true })).toBeVisible();
+  await expect(page.getByText('Enter this confirmation code in the field on the left, then select Next to continue to the session questionnaire.', { exact: true })).toBeVisible();
   await expect(page.getByText('MM-SESSION-1-COMPLETE', { exact: true })).toHaveCount(0);
   await expect(page.getByText('This session\'s games are complete', { exact: true })).toBeVisible();
 });
