@@ -47,7 +47,7 @@
 
 Welcome. **Mastermind** is a code-breaking game in which you try to identify a hidden sequence of four colors. After each guess, you receive feedback that can help you refine the next guess. Colors may repeat.
 
-This is a **four-part online study** administered through Prolific. Each part contains four complete Mastermind games with up to ten attempts per game, followed by questions about your experience. The next part opens no earlier than 24 hours after your answers for the preceding part have been submitted. Please return through Prolific when the next wave is available to you.
+This is a **four-part online study** administered through Prolific. Each part contains four complete Mastermind games with up to ten attempts per game, followed by questions about your experience. Complete the parts in order. Please return through Prolific when the next wave is available to you.
 
 After completing the games and questionnaires, keep this tab open until your data upload is confirmed. You will then be returned to Prolific to submit your participation. Payment for each part is handled through Prolific according to the details shown for that wave.
 
