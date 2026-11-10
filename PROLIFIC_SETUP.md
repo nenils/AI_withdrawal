@@ -71,11 +71,13 @@ Do not give Prolific the bare `/HAIC_part_N/` pages as recruitment links.
 - A neutral entry endpoint validates the participant ID and configured wave ID, fixes the condition,
   then opens the existing session page. `sona_id` in the redirected internal URL is a compatibility alias,
   not a SONA requirement. Do not use reVISit's reserved `participantId` URL parameter; that means analysis mode.
-- The next session opens **at least 24 hours after the original saved questionnaire submission**.
-  It is not timed from payment approval, the last guess, or a later revisit.
+- There is **no mandatory application-level waiting period** for Prolific participants after the preceding
+  session's games and questionnaires have been completed and saved. Prolific controls wave release and eligibility.
+  Older saved 24-hour unlock timestamps are ignored for Prolific participants; original records are not reset.
+  The existing SONA flow retains its 24-hour wait.
 - Prolific's longitudinal feature separately requires the preceding wave to be **approved**.
   Review/approve promptly (or configure the appropriate automatic approval action in Prolific);
-  the application cannot override Prolific's eligibility rules. Schedule follow-up waves accordingly.
+  the application cannot override Prolific's eligibility rules. Schedule follow-up waves according to your design.
 - Participants must enter each follow-up through its Prolific wave so its Study ID is checked.
   No direct next-session shortcut is shown to Prolific participants.
 - Completion requires four server-recorded finished games, the participant's own game confirmation code,

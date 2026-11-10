@@ -244,7 +244,7 @@ class WithdrawalStore:
         return self.save(record)
 
     def check_session_available(self, record: dict[str, Any]) -> None:
-        if record["participant_id"].startswith("debug-"):
+        if record["participant_id"].startswith("debug-") or (record.get("recruitment") or {}).get("platform") == "prolific":
             return
         available = record.get("next_session_available_at")
         if available and utc_now() < datetime.fromisoformat(available.replace("Z", "+00:00")):
@@ -406,7 +406,8 @@ class WithdrawalStore:
                 record["completed_at"] = iso(submitted)
             elif record["current_session"] in (part_number, part_number + 1):
                 record["current_session"] = part_number + 1
-                record["next_session_available_at"] = iso(submitted + timedelta(hours=24))
+                wait_hours = 0 if (record.get("recruitment") or {}).get("platform") == "prolific" else 24
+                record["next_session_available_at"] = iso(submitted + timedelta(hours=wait_hours))
             record["updated_at"] = iso(utc_now())
             return self.save(record)
 

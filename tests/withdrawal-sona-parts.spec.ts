@@ -149,7 +149,8 @@ test('Prolific introduction uses Prolific identity, timing and payment wording',
   await page.goto('/HAIC_part_1/?sona_id=intro-prolific-test&PROLIFIC_PID=intro-prolific-test');
   await expect(page.getByRole('heading', { name: 'Mastermind Study', exact: true })).toBeVisible();
   await expect(page.getByText(/administered through Prolific/)).toBeVisible();
-  await expect(page.getByText(/no earlier than 24 hours after your answers/)).toBeVisible();
+  await expect(page.getByText(/Please return through Prolific when the next wave is available/)).toBeVisible();
+  await expect(page.getByText(/24 hours|24-hour/)).toHaveCount(0);
   await page.getByText('Information on Data Collection', { exact: true }).click();
   await expect(page.getByText(/The study records your Prolific participant ID/)).toBeVisible();
   await expect(page.getByText(/Payment for each part is handled through Prolific/)).toBeVisible();

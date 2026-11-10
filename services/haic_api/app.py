@@ -110,7 +110,8 @@ def next_session_details(record):
     participant = urllib.parse.quote(record["participant_id"], safe="")
     return {
         "nextSessionNumber": part,
-        "nextSessionAvailableAt": record.get("next_session_available_at"),
+        "nextSessionAvailableAt": None if (record.get("recruitment") or {}).get("platform") == "prolific"
+        else record.get("next_session_available_at"),
         "nextSessionUrl": None if (record.get("recruitment") or {}).get("platform") == "prolific"
         else f"{STUDY_PUBLIC_URL.rstrip('/')}/HAIC_part_{part}/?sona_id={participant}",
     }

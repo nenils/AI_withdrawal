@@ -152,12 +152,13 @@ class ProlificTests(unittest.TestCase):
         self.assertFalse(response.json()["credited"])
         self.assertFalse(response.json()["creditPending"])
         self.assertIsNone(response.json()["nextSessionUrl"])
+        self.assertIsNone(response.json().get("nextSessionAvailableAt"))
         self.assertIn("/api/prolific/complete?", response.json()["completionUrl"])
         self.grant_sona.assert_not_called()
         response = self.client.get("/api/prolific/complete", params=payload)
         self.assertEqual(response.status_code, 302)
         self.assertIn("cc=APART1", response.headers["location"])
-        self.assertEqual(self.enter(part=2).status_code, 423)
+        self.assertEqual(self.enter(part=2).status_code, 302)
         self.assertEqual(self.enter().status_code, 302)
         status = self.client.post("/api/withdrawal/part-status", json=payload).json()
         self.assertTrue(status["locked"])
@@ -169,13 +170,26 @@ class ProlificTests(unittest.TestCase):
         self.assertEqual(self.enter(part=4).status_code, 409)
         self.finish_games()
         self.complete()
-        record = self.store.get(PID)
-        record["next_session_available_at"] = iso(utc_now() - timedelta(seconds=1))
-        self.store.save(record)
         payload = {"participantId": PID, "partNumber": 2}
         self.assertEqual(self.client.post("/api/withdrawal/state", json=payload).status_code, 423)
         self.assertEqual(self.enter(part=2).status_code, 302)
         self.assertEqual(self.client.post("/api/withdrawal/state", json=payload).status_code, 200)
+
+    def test_existing_prolific_wait_timestamp_is_ignored_without_changing_saved_answers(self):
+        self.enter()
+        self.finish_games()
+        self.assertEqual(self.complete().status_code, 200)
+        original = copy.deepcopy(self.saved[(PID, 1)])
+        record = self.store.get(PID)
+        record["next_session_available_at"] = iso(utc_now() + timedelta(hours=24))
+        self.store.save(record)
+        self.assertEqual(self.enter(part=2).status_code, 302)
+        response = self.client.post("/api/withdrawal/state", json={"participantId": PID, "partNumber": 2})
+        self.assertEqual(response.status_code, 200, response.text)
+        status = self.client.post("/api/withdrawal/part-status", json={"participantId": PID, "partNumber": 1})
+        self.assertTrue(status.json()["locked"])
+        self.assertIsNone(status.json()["nextSessionAvailableAt"])
+        self.assertEqual(self.saved[(PID, 1)], original)
 
     def test_ownership_all_seven_items_required_in_all_conditions(self):
         for condition in COHORTS.values():
@@ -194,7 +208,7 @@ class ProlificTests(unittest.TestCase):
             self.store._memory.clear()
             self.saved.clear()
             for part in range(1, 5):
-                with self.subTest(cohort=cohort, part=part), patch("withdrawal_store.utc_now", return_value=utc_now() + timedelta(days=part)):
+                with self.subTest(cohort=cohort, part=part):
                     self.assertEqual(self.enter(cohort, part, SESSION_ID="").status_code, 302)
                     state = self.client.post("/api/withdrawal/state", json={"participantId": PID, "partNumber": part})
                     self.assertEqual(state.status_code, 200, state.text)
