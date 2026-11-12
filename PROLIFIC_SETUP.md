@@ -111,6 +111,14 @@ events for transparent, prespecified quality assessment rather than changing the
 
 ## Data and Launch Check
 
+Game-window mouse movement, mouse down/up, privacy-preserving keyboard activity and visibility are forwarded
+to reVISit's native `windowEvents` when the game page is completed. This applies to both Prolific and SONA.
+Native mouse coordinates use the parent viewport; the separate `withdrawal_events` stream retains the richer
+iframe-local coordinates, viewport dimensions, session/game labels and other game/AI events.
+The combined ZIP exports that server stream in `events.csv`. These are overlapping representations, not
+independent observations to add together. Existing immutable submissions are never rewritten to add tracking:
+for historical game traces, check the server stream rather than assuming that sparse native events mean no activity.
+
 Existing SONA data and links remain supported; the same combined export includes both recruitment sources.
 `participant_status.csv` now includes `recruitment_platform` and `recruitment_json` (cohort and per-wave IDs).
 Keep SONA and Prolific samples distinguishable in analysis.

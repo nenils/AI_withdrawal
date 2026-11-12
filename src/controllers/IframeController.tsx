@@ -7,6 +7,9 @@ import { useStoreDispatch, useStoreActions, useStoreSelector } from '../store/st
 import { ParticipantData, WebsiteComponent } from '../parser/types';
 import { PREFIX as BASE_PREFIX } from '../utils/Prefix';
 import { useStorageEngine } from '../storage/storageEngineHooks';
+import { useWindowEvents } from '../store/hooks/useWindowEvents';
+import { useIsAnalysis } from '../store/hooks/useIsAnalysis';
+import { iframeInteractionEvent } from '../utils/iframeInteractionEvents';
 
 const PREFIX = '@REVISIT_COMMS';
 
@@ -20,6 +23,8 @@ export function IframeController({ currentConfig, provState, answers }: { curren
   const participantId = useStoreSelector((state) => state.participantId);
   const allAnswers = useStoreSelector((state) => state.answers);
   const { storageEngine } = useStorageEngine();
+  const windowEvents = useWindowEvents();
+  const isAnalysis = useIsAnalysis();
 
   const ref = useRef<HTMLIFrameElement>(null);
 
@@ -63,6 +68,14 @@ export function IframeController({ currentConfig, provState, answers }: { curren
       const { data } = e;
       if (typeof data === 'object' && iframeId === data.iframeId) {
         switch (data.type) {
+          case `${PREFIX}/INTERACTION_EVENT`: {
+            if (isAnalysis || !currentConfig.path.endsWith('mastermind_withdrawal.html')
+              || e.origin !== window.location.origin || e.source !== ref.current?.contentWindow) break;
+            const frame = ref.current?.getBoundingClientRect();
+            const event = frame ? iframeInteractionEvent(data.message, frame) : null;
+            if (event && windowEvents && 'current' in windowEvents && windowEvents.current) windowEvents.current.push(event);
+            break;
+          }
           case `${PREFIX}/WINDOW_READY`:
             if (currentConfig.path.endsWith('sona_completion.html') && storageEngine) {
               try {
@@ -111,7 +124,7 @@ export function IframeController({ currentConfig, provState, answers }: { curren
     window.addEventListener('message', handler);
 
     return () => window.removeEventListener('message', handler);
-  }, [storeDispatch, dispatch, iframeId, currentConfig, sendMessage, setReactiveAnswers, updateResponseBlockValidation, identifier, participantId, currentComponent, storageEngine, allAnswers]);
+  }, [storeDispatch, dispatch, iframeId, currentConfig, sendMessage, setReactiveAnswers, updateResponseBlockValidation, identifier, participantId, currentComponent, storageEngine, allAnswers, isAnalysis, windowEvents]);
 
   return (
     <iframe

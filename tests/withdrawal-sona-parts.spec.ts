@@ -30,6 +30,39 @@ function stateForPart(partNumber: number) {
   };
 }
 
+for (const source of ['sona', 'prolific']) {
+  for (const part of [2, 3]) {
+    test(`game iframe tracking is present in the native JSON for ${source} part ${part}`, async ({ page }) => {
+      const participantId = `tracking-${source}-${part}`;
+      await page.route('**/api/withdrawal/state', (route) => route.fulfill({ json: {
+        ...stateForPart(part), participantId, partGameComplete: true,
+      } }));
+      await page.route('**/api/withdrawal/events', (route) => route.fulfill({ json: { accepted: route.request().postDataJSON().events.length } }));
+      const params = new URLSearchParams({ sona_id: participantId });
+      if (source === 'prolific') { params.set('PROLIFIC_PID', participantId); params.set('STUDY_ID', 'test-study'); }
+      await page.goto(`/HAIC_part_${part}/?${params}`);
+      const frame = page.frameLocator('iframe');
+      await frame.getByRole('heading', { name: "This session's games are complete" }).click();
+      await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('q');
+      await page.getByRole('textbox').fill(`MM-S${part}-0123456789AB`);
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await expect(page.getByText('Thinking through the task was mainly my responsibility.')).toBeVisible();
+      const events = await page.evaluate((id) => {
+        const key = Object.keys(localStorage).find((name) => name.endsWith(`/participants/${id}_participantData`));
+        const document = key ? JSON.parse(localStorage.getItem(key)!) : { answers: {} };
+        const game = Object.values(document.answers).find((value) => (value as { componentName: string }).componentName === 'mastermind-part') as { windowEvents: [number, string, unknown][] };
+        return game?.windowEvents || [];
+      }, participantId);
+      expect(events.some((event) => event[1] === 'mousemove')).toBeTruthy();
+      expect(events.some((event) => event[1] === 'mousedown')).toBeTruthy();
+      expect(events.some((event) => event[1] === 'keydown' && event[2] === 'ArrowLeft')).toBeTruthy();
+      expect(events.some((event) => event[1] === 'keydown' && event[2] === 'character')).toBeTruthy();
+      expect(events.some((event) => event[2] === 'q')).toBeFalsy();
+    });
+  }
+}
+
 test('four unique SONA study configs are published', async ({ request }) => {
   const seenPaths = new Set<string>();
 
