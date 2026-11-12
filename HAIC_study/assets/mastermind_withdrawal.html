@@ -137,6 +137,7 @@
     var eventRetryAfter = 0;
     var lastMouseAt = 0;
     var lastSupportPhase = null;
+    var trackingFrameId = new URLSearchParams(window.location.search).get("id");
 
     function el(id) { return document.getElementById(id); }
     function now() { return new Date().toISOString(); }
@@ -145,13 +146,19 @@
       if (!participantId) return;
       var eventData = data || {};
       eventData.sequence = ++eventSequence;
-      pendingEvents.push({
+      var entry = {
         type: type,
         data: eventData,
         timestamp: now(),
-        sessionNumber: state ? state.currentSession : (partNumber || 1),
+        sessionNumber: partNumber || (state ? state.currentSession : 1),
         roundNumber: state && state.game ? state.game.round : null
-      });
+      };
+      pendingEvents.push(entry);
+      if (["mouseMove", "mouseDown", "mouseUp", "keyDown", "keyUp", "visibilityChanged"].indexOf(type) >= 0) {
+        window.parent.postMessage({
+          type: "@REVISIT_COMMS/INTERACTION_EVENT", iframeId: trackingFrameId, message: entry
+        }, window.location.origin);
+      }
       if (pendingEvents.length > 10000) pendingEvents.splice(0, pendingEvents.length - 10000);
       if (pendingEvents.length >= 25) flushEvents();
     }
@@ -573,6 +580,7 @@
     window.addEventListener("scroll", function () { event("scroll", {x:window.scrollX, y:window.scrollY}); }, {passive:true});
     document.addEventListener("visibilitychange", function () { event("visibilityChanged", {hidden:document.hidden}); if (document.hidden) flushEvents(); });
     window.addEventListener("beforeunload", function () { event("pageUnloaded"); flushEvents(true); });
+    window.addEventListener("pagehide", function () { flushEvents(true); });
     setInterval(flushEvents, 5000);
 
     Revisit.onDataReceive(function (data) {
