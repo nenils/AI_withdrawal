@@ -53,6 +53,7 @@
         "functionPath": "haic-withdrawal/willingness.ts"
       },
       "$haic-withdrawal.components.Ownership",
+      "$haic-withdrawal.components.additional-support",
       "sona-completion-part"
     ]
   }
