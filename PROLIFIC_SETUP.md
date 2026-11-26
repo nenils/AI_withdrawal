@@ -101,6 +101,14 @@ Control never has AI support. Four games, max 10 guesses each, six colors, four 
 - S4: CR, Raw NASA-TLX, willingness to depend for AI groups, **all seven ownership items for every group**.
 - One attention check per session; scale item order remains randomized.
 
+New Session 4 starts also include one additional-support page after ownership and before the submission page.
+It asks about support outside the study; reasons and support types appear only after Yes and are optional.
+The earlier-AI-performance reason is shown only for Advisor/Judge. Opt-out checkbox choices are exclusive.
+Answers use `additional-support-used`, `additional-support-reasons`, `additional-support-types`, and
+`additional-support-other` in the existing JSON/CSV exports. These are self-reports, not automatic exclusion
+or payment rules. The page is not retroactively required by the server for older questionnaire versions.
+Existing Session 4 assignments keep their saved configuration; completed submissions are not reopened.
+
 Ownership answers retain their existing IDs and 1-7 response values in analysis/export.
 The item `ownership-outcome-mine-reversed` is reverse-worded; reverse-score as `8 - response` if constructing
 a composite. The attention check is not an ownership item. No claim of scale validation is implied.

@@ -94,7 +94,7 @@ test('four unique SONA study configs are published', async ({ request }) => {
       partNumber === 2 ? '$haic-withdrawal.components.cognitive-responsibility-session-2' : '$haic-withdrawal.components.cognitive_responsibility',
       partNumber === 3 ? '$haic-withdrawal.components.nasa-tlx-session-3' : '$haic-withdrawal.components.nasa-tlx',
       ...(partNumber === 1 ? ['$haic-withdrawal.components.demographics'] : []),
-      ...(partNumber === 4 ? ['willingness-by-condition', '$haic-withdrawal.components.Ownership'] : []),
+      ...(partNumber === 4 ? ['willingness-by-condition', '$haic-withdrawal.components.Ownership', '$haic-withdrawal.components.additional-support'] : []),
       'sona-completion-part',
     ]);
   }
@@ -157,13 +157,71 @@ for (const condition of ['control', 'advisor', 'judge']) {
     await expect(page.getByText(/interaction with the AI system/i)).toHaveCount(0);
     for (const radio of await page.getByRole('radio', { name: '7', exact: true }).all()) await radio.click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Additional support', exact: true })).toBeVisible();
+    const additionalSupportUrl = page.url();
+    await expect(page.getByText('Your answer will not affect your payment.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+    await expect(page.getByText('What led you to use additional support during this session?')).toHaveCount(0);
+    if (condition === 'judge') {
+      await page.getByRole('radio', { name: 'Prefer not to answer', exact: true }).click();
+    } else {
+      await page.getByRole('radio', { name: 'Yes', exact: true }).click();
+      await expect(page.getByText('What led you to use additional support during this session?')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+      const earlierAI = page.getByRole('checkbox', { name: 'I wanted to match the performance I had achieved earlier when AI support was available.' });
+      if (condition === 'control') {
+        await expect(earlierAI).toHaveCount(0);
+        await page.getByRole('radio', { name: 'No', exact: true }).click();
+        await expect(page.getByRole('checkbox')).toHaveCount(0);
+      } else {
+        await expect(earlierAI).toBeVisible();
+        await page.getByRole('checkbox', { name: 'I felt frustrated or stuck and did not know how to proceed.' }).check();
+        await page.getByRole('checkbox', { name: 'Prefer not to say', exact: true }).check();
+        await expect(page.getByRole('checkbox', { name: 'I felt frustrated or stuck and did not know how to proceed.' })).not.toBeChecked();
+        await earlierAI.check();
+        await expect(page.getByRole('checkbox', { name: 'Prefer not to say', exact: true })).not.toBeChecked();
+        await page.getByRole('checkbox', { name: 'Other support', exact: true }).check();
+        await page.getByRole('textbox', { name: 'Please specify the other support (optional)' }).fill('Discard this answer');
+        await page.getByRole('radio', { name: 'No', exact: true }).click();
+        await expect(page.getByRole('checkbox')).toHaveCount(0);
+        await page.getByRole('radio', { name: 'Yes', exact: true }).click();
+        await expect(earlierAI).not.toBeChecked();
+        await page.getByRole('checkbox', { name: 'I wanted to complete the task more quickly.' }).check();
+        await earlierAI.check();
+        await page.getByRole('checkbox', { name: 'Other support', exact: true }).check();
+        await expect(page.getByRole('textbox')).toHaveValue('');
+        await page.getByRole('textbox').fill('A personal checklist');
+        await page.getByRole('checkbox', { name: 'An external AI tool or chatbot, such as ChatGPT, Claude, or Gemini' }).check();
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({ path: '/tmp/withdrawal-additional-support-desktop.png', fullPage: true });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+        await page.screenshot({ path: '/tmp/withdrawal-additional-support-mobile.png', fullPage: true });
+        await page.setViewportSize({ width: 1280, height: 720 });
+      }
+    }
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.frameLocator('iframe').getByText('Your answers have been saved.', { exact: false })).toBeVisible();
+    expect(savedAnswersAtCredit['additional-support-used']).toBe(condition === 'advisor' ? 'yes' : condition === 'control' ? 'no' : 'prefer_not_to_say');
+    expect(savedAnswersAtCredit['additional-support-reasons']).toEqual(condition === 'advisor' ? ['time', 'previous_ai_performance'] : []);
+    expect(savedAnswersAtCredit['additional-support-types']).toEqual(condition === 'advisor' ? ['other', 'external_ai'] : []);
+    expect(savedAnswersAtCredit['additional-support-other']).toBe(condition === 'advisor' ? 'A personal checklist' : '');
     for (const field of completionRequirements['4']) {
       if (field.supportedOnly && condition === 'control') continue;
       expect(savedAnswersAtCredit[field.id], field.id).toBeDefined();
     }
     await expect(page.getByRole('textbox')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+    if (condition === 'advisor') {
+      await page.goto(`${additionalSupportUrl}&participantId=questionnaire-advisor`);
+      await expect(page.getByRole('heading', { name: 'Additional support', exact: true })).toBeVisible();
+      await expect(page.getByRole('radio', { name: 'Yes', exact: true })).toBeChecked();
+      await expect(page.getByRole('radio', { name: 'Yes', exact: true })).toBeDisabled();
+      await expect(page.getByRole('checkbox', { name: 'I wanted to complete the task more quickly.' })).toBeChecked();
+      await expect(page.getByRole('textbox', { name: 'Please specify the other support (optional)' })).toHaveValue('A personal checklist');
+      await expect(page.getByRole('textbox', { name: 'Please specify the other support (optional)' })).toHaveAttribute('readonly', '');
+    }
   });
 }
 

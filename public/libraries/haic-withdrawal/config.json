@@ -946,6 +946,46 @@
       },
       "withSidebar": false
     },
+    "additional-support": {
+      "type": "react-component",
+      "path": "haic-withdrawal/AdditionalSupport.tsx",
+      "description": "Optional follow-ups on support used outside the study during the final session.",
+      "withSidebar": false,
+      "response": [
+        {
+          "id": "additional-support-used",
+          "prompt": "During the four games in this session, did you use any additional support beyond what was provided within the study?",
+          "type": "reactive",
+          "hidden": true,
+          "required": false,
+          "location": "belowStimulus"
+        },
+        {
+          "id": "additional-support-reasons",
+          "prompt": "What led you to use additional support during this session?",
+          "type": "reactive",
+          "hidden": true,
+          "required": false,
+          "location": "belowStimulus"
+        },
+        {
+          "id": "additional-support-types",
+          "prompt": "What additional support did you use?",
+          "type": "reactive",
+          "hidden": true,
+          "required": false,
+          "location": "belowStimulus"
+        },
+        {
+          "id": "additional-support-other",
+          "prompt": "Please specify the other support (optional)",
+          "type": "reactive",
+          "hidden": true,
+          "required": false,
+          "location": "belowStimulus"
+        }
+      ]
+    },
     "cognitive-responsibility-session-2": {
       "type": "questionnaire",
       "description": "Please answer the following questions about your experience during the task.",

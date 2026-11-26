@@ -99,6 +99,19 @@ components['sona-completion'] = {
   withSidebar: false,
 };
 
+components['additional-support'] = {
+  type: 'react-component',
+  path: 'haic-withdrawal/AdditionalSupport.tsx',
+  description: 'Optional follow-ups on support used outside the study during the final session.',
+  withSidebar: false,
+  response: [
+    ['additional-support-used', 'During the four games in this session, did you use any additional support beyond what was provided within the study?'],
+    ['additional-support-reasons', 'What led you to use additional support during this session?'],
+    ['additional-support-types', 'What additional support did you use?'],
+    ['additional-support-other', 'Please specify the other support (optional)'],
+  ].map(([id, prompt]) => ({ id, prompt, type: 'reactive', hidden: true, required: false, location: 'belowStimulus' })),
+};
+
 function withAttentionCheck(component, session, prompt, answer) {
   const copy = structuredClone(component);
   const id = `attention-check-session-${session}`;
@@ -135,6 +148,7 @@ const finalMeasures = [
     functionPath: 'haic-withdrawal/willingness.ts',
   },
   '$haic-withdrawal.components.Ownership',
+  '$haic-withdrawal.components.additional-support',
 ];
 
 const requirements = {};
