@@ -2,7 +2,6 @@ export const supportReasons = [
   { value: 'second_opinion', label: 'I wanted a second opinion to check whether I had overlooked something.' },
   { value: 'frustrated_stuck', label: 'I felt frustrated or stuck and did not know how to proceed.' },
   { value: 'time', label: 'I wanted to complete the task more quickly.' },
-  { value: 'accuracy', label: 'I wanted to improve the accuracy of my guesses.' },
   { value: 'previous_ai_performance', label: 'I wanted to match the performance I had achieved earlier when AI support was available.' },
 ];
 

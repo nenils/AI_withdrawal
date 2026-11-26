@@ -13,6 +13,9 @@ export default function AdditionalSupport({ setAnswer, answers }: StimulusParams
   const [other, setOther] = useState(() => typeof saved?.['additional-support-other'] === 'string' ? saved['additional-support-other'] : '');
   const game = Object.values(answers).find((answer) => answer.componentName === 'mastermind-part');
   const aiCondition = game?.answer.mastermindGame_condition === 'advisor' || game?.answer.mastermindGame_condition === 'judge';
+  const visibleReasons = supportReasons.filter((option) => aiCondition || option.value !== 'previous_ai_performance');
+  // Preserve the meaning of historical answers without offering the retired option to participants.
+  if (isAnalysis && reasons.includes('accuracy')) visibleReasons.push({ value: 'accuracy', label: 'I wanted to improve the accuracy of my guesses.' });
 
   useEffect(() => {
     if (isAnalysis) return;
@@ -55,7 +58,7 @@ export default function AdditionalSupport({ setAnswer, answers }: StimulusParams
             <legend style={{ fontWeight: 600 }}>What led you to use additional support during this session?</legend>
             <Text size="sm" c="dimmed" mb="md">Please select all that apply. This question is optional.</Text>
             <Stack gap="sm">
-              {supportReasons.filter((option) => aiCondition || option.value !== 'previous_ai_performance').map((option) => (
+              {visibleReasons.map((option) => (
                 <Checkbox key={option.value} label={option.label} disabled={isAnalysis} checked={reasons.includes(option.value)} onChange={() => setReasons((values) => toggleSupportChoice(values, option.value))} />
               ))}
               <Checkbox label="Prefer not to say" disabled={isAnalysis} checked={reasons.includes('prefer_not_to_say')} onChange={() => setReasons((values) => toggleSupportChoice(values, 'prefer_not_to_say'))} />

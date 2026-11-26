@@ -167,6 +167,7 @@ for (const condition of ['control', 'advisor', 'judge']) {
     } else {
       await page.getByRole('radio', { name: 'Yes', exact: true }).click();
       await expect(page.getByText('What led you to use additional support during this session?')).toBeVisible();
+      await expect(page.getByRole('checkbox', { name: 'I wanted to improve the accuracy of my guesses.' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
       const earlierAI = page.getByRole('checkbox', { name: 'I wanted to match the performance I had achieved earlier when AI support was available.' });
       if (condition === 'control') {
@@ -221,6 +222,17 @@ for (const condition of ['control', 'advisor', 'judge']) {
       await expect(page.getByRole('checkbox', { name: 'I wanted to complete the task more quickly.' })).toBeChecked();
       await expect(page.getByRole('textbox', { name: 'Please specify the other support (optional)' })).toHaveValue('A personal checklist');
       await expect(page.getByRole('textbox', { name: 'Please specify the other support (optional)' })).toHaveAttribute('readonly', '');
+      await page.evaluate(() => {
+        const key = Object.keys(localStorage).find((name) => name.endsWith('/participants/questionnaire-advisor_participantData'))!;
+        const document = JSON.parse(localStorage.getItem(key)!);
+        const support = Object.values(document.answers).find((value) => Object.hasOwn((value as { answer: object }).answer, 'additional-support-used')) as { answer: Record<string, unknown> };
+        support.answer['additional-support-reasons'] = ['accuracy'];
+        localStorage.setItem(key, JSON.stringify(document));
+      });
+      await page.reload();
+      const retiredReason = page.getByRole('checkbox', { name: 'I wanted to improve the accuracy of my guesses.' });
+      await expect(retiredReason).toBeChecked();
+      await expect(retiredReason).toBeDisabled();
     }
   });
 }
